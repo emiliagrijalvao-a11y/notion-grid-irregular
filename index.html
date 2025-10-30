@@ -1,237 +1,274 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Content Grid — Irregular</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Content Grid</title>
   <style>
-    :root { --bg:#0b0b0b; --card:#131313; --ink:#f2f2f2; --muted:#9b9b9b; --line:#202020; --pill:#1a1a1a; }
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Inter;}
-    .wrap{max-width:1100px;margin:40px auto;padding:0 16px;}
-    h1{font-weight:600;letter-spacing:.2px;margin:0 0 18px}
-    .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
-    .bar .count{margin-left:auto;font-size:14px;color:var(--muted)}
-    .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-    select,input[type="text"]{background:var(--pill);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:10px 12px;outline:none}
-    .toggle{display:inline-flex;align-items:center;gap:8px;background:var(--pill);border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:14px;color:var(--muted)}
-    .chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 16px}
-    .chip{background:var(--pill);border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:12px;color:var(--muted)}
-    .chip b{color:var(--ink)}
-    .chip button{all:unset;cursor:pointer;margin-left:8px;color:var(--muted)}
-    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-    @media (max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
-    @media (max-width:600px){.grid{grid-template-columns:1fr}}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
-    .cover{aspect-ratio:16/9;background:#0e0e0e;border-bottom:1px solid var(--line)}
-    .meta{padding:12px}
-    .meta h3{margin:0 0 6px;font-size:16px;font-weight:600}
-    .meta .sub{font-size:13px;color:var(--muted)}
-    .badge{display:inline-block;font-size:11px;border:1px solid var(--line);padding:3px 6px;border-radius:999px;margin-left:8px;color:var(--muted)}
-    .empty{border:1px dashed var(--line);border-radius:14px;padding:24px;text-align:center;color:var(--muted);margin:8px 0 18px}
-    .actions{display:flex;justify-content:center;margin:18px 0}
-    .btn{background:#1d1d1d;border:1px solid var(--line);color:var(--ink);padding:10px 14px;border-radius:12px;cursor:pointer}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #fafafa;
+      color: #333;
+      padding: 20px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    h1 { font-size: 24px; font-weight: 600; }
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 15px;
+    }
+    select, input[type="text"], button {
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: white;
+      font-size: 14px;
+    }
+    button {
+      cursor: pointer;
+      background: #f5f5f5;
+      border: 1px solid #ccc;
+    }
+    button:hover { background: #e8e8e8; }
+    .chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 15px;
+    }
+    .chip {
+      background: #e0e0e0;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chip button {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      padding: 0;
+      font-size: 16px;
+      line-height: 1;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+    }
+    .card-image {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      background: #f0f0f0;
+    }
+    .card-body {
+      padding: 12px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    .badge {
+      display: inline-block;
+      background: #fff3cd;
+      color: #856404;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-left: 6px;
+    }
+    .pin-icon {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(255,255,255,0.9);
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+    .empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: #999;
+      font-size: 16px;
+    }
+    .load-more {
+      text-align: center;
+      margin: 20px 0;
+    }
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <div class="bar">
-      <h1 style="margin-right:8px">Posts</h1>
-      <span id="resultCount" class="count">0 resultados</span>
+  <div class="container">
+    <div class="header">
+      <h1>Posts</h1>
+      <span id="count">0 resultados</span>
     </div>
 
-    <!-- Filtros principales -->
-    <div class="row" aria-label="Filtros">
-      <select id="projectSelect" aria-label="Project">
+    <div class="controls">
+      <select id="projectSelect">
         <option value="">Project: todos</option>
       </select>
-
-      <select id="clientSelect" aria-label="Client">
+      <select id="clientSelect">
         <option value="">Client: todos</option>
       </select>
-
-      <select id="brandSelect" aria-label="Brand" disabled>
+      <select id="brandSelect" disabled>
         <option value="">Brand: todos</option>
       </select>
-
-      <label class="toggle" for="draftOnly">
-        <input id="draftOnly" type="checkbox" />
-        Draft only
-      </label>
+      <input id="search" type="text" placeholder="Buscar posts...">
+      <label><input id="draftOnly" type="checkbox"> Draft only</label>
+      <button id="refresh">Refresh</button>
+      <button id="clearAll">Clear all</button>
     </div>
 
-    <!-- Búsqueda -->
-    <div class="row">
-      <input id="q" type="text" placeholder="Buscar posts..." aria-label="Buscar" />
-      <button id="clearAll" class="btn" type="button">Clear all</button>
-      <button id="refresh" class="btn" type="button">Refresh</button>
-    </div>
-
-    <!-- Chips activos -->
-    <div id="chips" class="chips" aria-live="polite"></div>
-
-    <!-- Grid -->
+    <div id="chips" class="chips"></div>
+    
+    <div id="grid" class="grid"></div>
     <div id="empty" class="empty" hidden>No hay resultados con los filtros actuales.</div>
-    <section id="grid" class="grid" aria-live="polite"></section>
-
-    <div class="actions">
-      <button id="loadMore" class="btn" type="button">Load more</button>
+    
+    <div class="load-more">
+      <button id="loadMore">Load more</button>
     </div>
-  </main>
+  </div>
 
   <script>
-    // Util: intenta múltiples nombres de campo para soportar distintas formas del JSON
-    function readName(x){ if(!x) return ""; if(typeof x === "string") return x; return x.name || x.title || x.text || ""; }
-    function normPost(p){
-      const project = p.project || p.PostProject || p.Project;
-      const client  = p.client  || p.PostMain   || p.Main;
-      const brands  = p.brands  || p.PostBrands || p.Brands || [];
-      const isDraft = (p.status === "Draft") || (p.draft === true) || (p.Status === "Draft") || (p.Draft === true);
-      const cover   = p.cover   || p.image || null;
-      const title   = readName(p.title) || readName(p.Name) || p.name || "Untitled";
-      return {
-        raw:p,
-        title,
-        projectId: project?.id || project?.value || "",
-        projectName: readName(project),
-        clientId: client?.id || client?.value || "",
-        clientName: readName(client),
-        brandIds: Array.isArray(brands) ? brands.map(b=>b?.id||b?.value||"") : [],
-        brandNames: Array.isArray(brands) ? brands.map(readName) : [],
-        isDraft, cover
-      };
-    }
-
     const state = {
-      all: [], page: 1, pageSize: 24,
-      q: "", draftOnly: false, project: "", client: "", brand: ""
+      all: [],
+      project: "",
+      client: "",
+      brand: "",
+      q: "",
+      draft: false,
+      page: 1,
+      pageSize: 24
     };
 
     const els = {
-      project: document.getElementById('projectSelect'),
-      client:  document.getElementById('clientSelect'),
-      brand:   document.getElementById('brandSelect'),
-      q:       document.getElementById('q'),
-      draft:   document.getElementById('draftOnly'),
-      chips:   document.getElementById('chips'),
-      grid:    document.getElementById('grid'),
-      empty:   document.getElementById('empty'),
-      count:   document.getElementById('resultCount'),
-      loadMore:document.getElementById('loadMore'),
-      clearAll:document.getElementById('clearAll'),
-      refresh: document.getElementById('refresh'),
+      project: document.getElementById("projectSelect"),
+      client: document.getElementById("clientSelect"),
+      brand: document.getElementById("brandSelect"),
+      search: document.getElementById("search"),
+      draft: document.getElementById("draftOnly"),
+      refresh: document.getElementById("refresh"),
+      clearAll: document.getElementById("clearAll"),
+      chips: document.getElementById("chips"),
+      grid: document.getElementById("grid"),
+      empty: document.getElementById("empty"),
+      count: document.getElementById("count"),
+      loadMore: document.getElementById("loadMore")
     };
 
-    // Debounce simple
-    function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
-
-    // Render helpers
-    function renderOptions(select, items, label){
-      const cur = select.value;
-      select.innerHTML = `<option value="">${label}: todos</option>` + items.map(([id,name]) =>
-        `<option value="${id}">${name}</option>`).join('');
-      if (items.find(([id]) => id===cur)) select.value=cur;
+    function debounce(fn, ms) {
+      let t;
+      return (...args) => {
+        clearTimeout(t);
+        t = setTimeout(() => fn(...args), ms);
+      };
     }
 
-    function renderChips(){
-      const chips = [];
-      if (state.project) chips.push(['Project', els.project.selectedOptions[0]?.text, ()=>{els.project.value=""; state.project=""; update();}]);
-      if (state.client)  chips.push(['Client',  els.client.selectedOptions[0]?.text,  ()=>{els.client.value=""; state.client=""; state.brand=""; els.brand.value=""; update();}]);
-      if (state.brand)   chips.push(['Brand',   els.brand.selectedOptions[0]?.text,   ()=>{els.brand.value=""; state.brand=""; update();}]);
-      if (state.q)       chips.push(['q',       state.q,                                ()=>{els.q.value=""; state.q=""; update();}]);
-
-      els.chips.innerHTML = chips.map(([k,v],i)=>`<span class="chip"><b>${k}:</b> ${v}<button aria-label="Remove ${k}">×</button></span>`).join('');
-      // Bind closes
-      [...els.chips.querySelectorAll('button')].forEach((btn,i)=>btn.onclick = chips[i][2]);
-    }
-
-    function renderGrid(items){
-      els.count.textContent = items.length + ' resultados';
-      els.empty.hidden = items.length>0;
-      const slice = items.slice(0, state.page*state.pageSize);
-      els.loadMore.style.display = (slice.length < items.length) ? 'inline-flex' : 'none';
-      els.grid.innerHTML = slice.map(p => `
-        <article class="card">
-          <div class="cover" style="${p.cover ? `background:url('${p.cover}') center/cover` : ''}"></div>
-          <div class="meta">
-            <h3>${p.title}${p.isDraft ? `<span class="badge">Draft</span>`:''}</h3>
-            <div class="sub">${[p.brandNames.join(' · ')||null, p.projectName||null].filter(Boolean).join(' — ')}</div>
-          </div>
-        </article>
-      `).join('');
-    }
-
-    function applyFilters(){
-      let items = state.all;
-      if (state.project) items = items.filter(p => p.projectId===state.project);
-      if (state.client)  items = items.filter(p => p.clientId===state.client);
-      if (state.brand)   items = items.filter(p => p.brandIds.includes(state.brand));
-      if (state.draftOnly) items = items.filter(p => p.isDraft);
-      if (state.q){
-        const q = state.q.toLowerCase();
-        items = items.filter(p =>
-          p.title.toLowerCase().includes(q) ||
-          p.projectName.toLowerCase().includes(q) ||
-          p.clientName.toLowerCase().includes(q) ||
-          p.brandNames.join(' ').toLowerCase().includes(q)
-        );
-      }
-      return items;
-    }
-
-    function buildFacets(items){
-      // Unique tuples [id,name]
-      const u = (arr) => [...new Map(arr.filter(x=>x[0]).map(x=>[x[0],x[1]])).entries()];
-      const proj = u(items.map(p=>[p.projectId, p.projectName]));
-      const clients = u(items.map(p=>[p.clientId, p.clientName]));
-      // Brands depend on client si hay client activo
-      let brandsRaw = [];
-      items.forEach(p => {
-        if (state.client && p.clientId !== state.client) return;
-        p.brandIds.forEach((id,idx)=> brandsRaw.push([id, p.brandNames[idx]]));
-      });
-      const brands = u(brandsRaw);
-
-      renderOptions(els.project, proj, 'Project');
-      renderOptions(els.client, clients, 'Client');
-
-      els.brand.disabled = brands.length===0;
-      renderOptions(els.brand, brands, 'Brand');
-      if (brands.length===1 && !state.brand) { state.brand = brands[0][0]; els.brand.value = state.brand; }
-    }
-
-    function update(){
-      const items = applyFilters();
-      buildFacets(state.all); // Mantén listas completas; la cascada de brand se limita por client en buildFacets
-      renderChips();
-      renderGrid(items);
-    }
-
-    async function load(reset=false){
-      if(reset){ state.page=1; }
-      // Intenta pasar query al API (si el backend ya filtra); si no, ignorará y filtramos aquí
+    async function load() {
       const params = new URLSearchParams({
-        q: state.q || "", draft: state.draftOnly ? "1":"", project: state.project, client: state.client, brand: state.brand
+        q: state.q,
+        project: state.project,
+        client: state.client,
+        brand: state.brand,
+        draft: state.draft ? "1" : ""
       });
-      const res = await fetch('/api/grid?'+params.toString(), { cache:'no-store' });
-      const json = await res.json().catch(()=>({items:[]}));
-      const items = Array.isArray(json) ? json : (json.items || []);
-      state.all = items.map(normPost);
-      update();
+      const res = await fetch(`/api/grid?${params}`);
+      const json = await res.json();
+      state.all = json.items || [];
+      render();
     }
 
-    // Bind UI
-    els.project.onchange = ()=>{ state.project = els.project.value; state.page=1; load(true); };
-    els.client.onchange  = ()=>{ state.client  = els.client.value; state.brand=""; els.brand.value=""; state.page=1; load(true); };
-    els.brand.onchange   = ()=>{ state.brand   = els.brand.value; state.page=1; update(); };
-    els.draft.onchange   = ()=>{ state.draftOnly = els.draft.checked; state.page=1; update(); };
-    els.q.addEventListener('input', debounce(()=>{ state.q = els.q.value.trim(); state.page=1; update(); }, 250));
-    els.clearAll.onclick = ()=>{ els.project.value=""; els.client.value=""; els.brand.value=""; els.q.value=""; els.draft.checked=false;
-      state.project=state.client=state.brand=state.q=""; state.draftOnly=false; state.page=1; update(); };
-    els.loadMore.onclick = ()=>{ state.page++; update(); };
-    els.refresh.onclick  = ()=> load(true);
+    function render() {
+      const items = state.all;
+      els.count.textContent = `${items.length} resultados`;
+      els.empty.hidden = items.length > 0;
 
-    // Init
-    load(true);
+      const slice = items.slice(0, state.page * state.pageSize);
+      els.loadMore.style.display = slice.length < items.length ? "block" : "none";
+
+      els.grid.innerHTML = slice.map(item => `
+        <div class="card">
+          ${item.pinned ? '<div class="pin-icon">📌</div>' : ''}
+          ${item.assets[0] ? `<img class="card-image" src="${item.assets[0].url}" alt="">` : '<div class="card-image"></div>'}
+          <div class="card-body">
+            <div class="card-title">
+              ${item.title}
+              ${item.isDraft ? '<span class="badge">Draft</span>' : ''}
+            </div>
+          </div>
+        </div>
+      `).join("");
+
+      renderChips();
+    }
+
+    function renderChips() {
+      const chips = [];
+      if (state.project) chips.push({ label: "Project", value: els.project.selectedOptions[0]?.text, clear: () => { state.project = ""; els.project.value = ""; } });
+      if (state.client) chips.push({ label: "Client", value: els.client.selectedOptions[0]?.text, clear: () => { state.client = ""; state.brand = ""; els.client.value = ""; els.brand.value = ""; } });
+      if (state.brand) chips.push({ label: "Brand", value: els.brand.selectedOptions[0]?.text, clear: () => { state.brand = ""; els.brand.value = ""; } });
+      if (state.q) chips.push({ label: "Búsqueda", value: state.q, clear: () => { state.q = ""; els.search.value = ""; } });
+
+      els.chips.innerHTML = chips.map((c, i) => `
+        <div class="chip">
+          <strong>${c.label}:</strong> ${c.value}
+          <button data-idx="${i}">×</button>
+        </div>
+      `).join("");
+
+      els.chips.querySelectorAll("button").forEach((btn, i) => {
+        btn.onclick = () => {
+          chips[i].clear();
+          state.page = 1;
+          load();
+        };
+      });
+    }
+
+    els.project.onchange = () => { state.project = els.project.value; state.page = 1; load(); };
+    els.client.onchange = () => { state.client = els.client.value; state.brand = ""; els.brand.value = ""; state.page = 1; load(); };
+    els.brand.onchange = () => { state.brand = els.brand.value; state.page = 1; load(); };
+    els.draft.onchange = () => { state.draft = els.draft.checked; state.page = 1; load(); };
+    els.search.addEventListener("input", debounce(() => { state.q = els.search.value.trim(); state.page = 1; load(); }, 250));
+    els.clearAll.onclick = () => {
+      state.project = state.client = state.brand = state.q = "";
+      state.draft = false;
+      state.page = 1;
+      els.project.value = els.client.value = els.brand.value = els.search.value = "";
+      els.draft.checked = false;
+      load();
+    };
+    els.loadMore.onclick = () => { state.page++; render(); };
+    els.refresh.onclick = () => load();
+
+    load();
   </script>
 </body>
 </html>
