@@ -1,274 +1,493 @@
-<!DOCTYPE html>
-<html lang="es">
+<!doctype html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Content Grid</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #fafafa;
-      color: #333;
-      padding: 20px;
-    }
-    .container { max-width: 1200px; margin: 0 auto; }
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-    h1 { font-size: 24px; font-weight: 600; }
-    .controls {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 15px;
-    }
-    select, input[type="text"], button {
-      padding: 10px 14px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      background: white;
-      font-size: 14px;
-    }
-    button {
-      cursor: pointer;
-      background: #f5f5f5;
-      border: 1px solid #ccc;
-    }
-    button:hover { background: #e8e8e8; }
-    .chips {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 15px;
-    }
-    .chip {
-      background: #e0e0e0;
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 13px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .chip button {
-      border: none;
-      background: transparent;
-      cursor: pointer;
-      padding: 0;
-      font-size: 16px;
-      line-height: 1;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-    .card {
-      background: white;
-      border: 1px solid #e0e0e0;
-      border-radius: 12px;
-      overflow: hidden;
-      position: relative;
-    }
-    .card-image {
-      width: 100%;
-      aspect-ratio: 1;
-      object-fit: cover;
-      background: #f0f0f0;
-    }
-    .card-body {
-      padding: 12px;
-    }
-    .card-title {
-      font-size: 14px;
-      font-weight: 500;
-      margin-bottom: 6px;
-    }
-    .badge {
-      display: inline-block;
-      background: #fff3cd;
-      color: #856404;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      margin-left: 6px;
-    }
-    .pin-icon {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      background: rgba(255,255,255,0.9);
-      border-radius: 50%;
-      width: 24px;
-      height: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-    }
-    .empty {
-      text-align: center;
-      padding: 60px 20px;
-      color: #999;
-      font-size: 16px;
-    }
-    .load-more {
-      text-align: center;
-      margin: 20px 0;
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Content Grid - Mitch</title>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+<script src="https://animatedicons.co/scripts/embed-animated-icons.js"></script>
+
+<style>
+  :root{
+    --bg:#fff; --text:#111; --muted:#f7f7f7; --border:#e5e7eb; --blue:#1B4B91;
+    --container:936px; --gap:1px;
+    --ui-font:13px; --ui-pad-y:8px; --ui-pad-x:12px; --ui-radius:14px;
+    --dd-minw:140px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
+  .wrap{max-width:var(--container);margin:0 auto;padding:14px}
+
+  .toolbar{
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+    border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:10px;
+    justify-content:center;
+  }
+  .btn{border:1px solid var(--border);background:#111;color:#fff;
+    padding:var(--ui-pad-y) var(--ui-pad-x);font-weight:700;cursor:pointer;
+    border-radius:10px;font-size:var(--ui-font);display:inline-flex;align-items:center;gap:8px}
+  .btn-icon{width:36px;height:36px;border:2px solid var(--border);background:#fff;
+    border-radius:12px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+
+  .filters-row{display:none;gap:10px;align-items:center;justify-content:center;padding:6px 0 12px;border-bottom:1px solid var(--border);margin-bottom:10px;flex-wrap:wrap}
+  .filters-row.open{display:flex}
+
+  .dd{position:relative}
+  .dd-toggle{
+    border:2px solid var(--border);background:#f6f6f6;padding:var(--ui-pad-y) var(--ui-pad-x);
+    min-width:var(--dd-minw);max-width:200px;cursor:pointer;display:inline-flex;
+    justify-content:space-between;align-items:center;gap:8px;border-radius:var(--ui-radius);
+    font-weight:600;font-size:var(--ui-font);white-space:nowrap
+  }
+  .dd-toggle .label-clip{overflow:hidden;text-overflow:ellipsis}
+  .dd-toggle .count{color:#999;margin-left:6px;font-size:12px;flex-shrink:0}
+  .dd-menu{
+    position:absolute;top:calc(100% + 8px);left:0;min-width:100%;background:#fff;border:1px solid var(--border);
+    box-shadow:0 8px 24px rgba(0,0,0,.12);display:none;z-index:30;border-radius:12px;padding:6px;max-height:300px;overflow-y:auto
+  }
+  .dd.open .dd-menu{display:block}
+  .dd-item{padding:8px 10px;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:13px;border-radius:8px}
+  .dd-item:hover{background:#f9fafb}
+  .dd-item .radio{width:16px;height:16px;border:2px solid #ddd;border-radius:50%;position:relative;flex-shrink:0}
+  .dd-item.active .radio{border-color:#111}
+  .dd-item.active .radio::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:7px;height:7px;background:#111;border-radius:50%}
+  .dd-item .label{flex:1}
+  .dd-item .count{color:#999;font-size:12px}
+
+  .chips{display:flex;gap:8px;flex-wrap:wrap;padding:10px 0;min-height:20px}
+  .chip{
+    background:#f0f0f0;border:1px solid var(--border);border-radius:16px;
+    padding:4px 10px;font-size:12px;display:flex;align-items:center;gap:6px
+  }
+  .chip button{
+    border:none;background:transparent;cursor:pointer;padding:0;
+    font-size:14px;line-height:1;font-weight:600
+  }
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--gap);margin-bottom:16px}
+  @media(max-width:768px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:480px){.grid{grid-template-columns:1fr}}
+  
+  .card{position:relative;aspect-ratio:1;overflow:hidden;cursor:pointer;background:#f5f5f5}
+  .card img{width:100%;height:100%;object-fit:cover}
+  .card .pin{position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9);
+    border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .card .badge{position:absolute;bottom:8px;left:8px;background:rgba(255,243,205,0.95);
+    color:#856404;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600}
+  .card .video-icon{position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.7);
+    color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px}
+
+  .load-more{text-align:center;margin:20px 0}
+  .load-more button{padding:10px 20px;border:2px solid var(--border);background:#fff;
+    cursor:pointer;border-radius:10px;font-weight:600;font-size:13px}
+  .load-more button:hover{background:#f9f9f9}
+
+  .empty{text-align:center;padding:60px 20px;color:#999;font-size:14px}
+
+  .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:999;
+    align-items:center;justify-content:center;padding:20px}
+  .modal.visible{display:flex}
+  .modal-content{max-width:90vw;max-height:90vh;position:relative}
+  .modal-content img,.modal-content video{max-width:100%;max-height:85vh;object-fit:contain}
+  .modal-close{position:absolute;top:10px;right:10px;background:rgba(255,255,255,0.9);
+    border:none;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:24px}
+  .modal-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.9);
+    border:none;width:50px;height:50px;border-radius:50%;cursor:pointer;font-size:20px}
+  .modal-nav.prev{left:10px}
+  .modal-nav.next{right:10px}
+  .modal-dots{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+    display:flex;gap:8px}
+  .modal-dots .dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.5);cursor:pointer}
+  .modal-dots .dot.active{background:#fff}
+</style>
 </head>
+
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>Posts</h1>
-      <span id="count">0 resultados</span>
-    </div>
+<main class="wrap">
+  <div class="toolbar">
+    <button id="btnRefresh" class="btn">
+      <animated-icons id="aiRefresh"
+        src="https://animatedicons.co/get-icon?name=Restart&style=minimalistic&token=13c130bf-0940-48c2-92e3-16b6ffe3b232"
+        trigger="click"
+        attributes='{"variationThumbColour":"#FFFFFF","variationName":"Normal","variationNumber":1,"numberOfGroups":1,"backgroundIsGroup":false,"strokeWidth":1.48,"defaultColours":{"group-1":"#FFFFFFFF","background":"#FFFFFF"}}'
+        height="18" width="18"></animated-icons>
+      Refresh
+    </button>
 
-    <div class="controls">
-      <select id="projectSelect">
-        <option value="">Project: todos</option>
-      </select>
-      <select id="clientSelect">
-        <option value="">Client: todos</option>
-      </select>
-      <select id="brandSelect" disabled>
-        <option value="">Brand: todos</option>
-      </select>
-      <input id="search" type="text" placeholder="Buscar posts...">
-      <label><input id="draftOnly" type="checkbox"> Draft only</label>
-      <button id="refresh">Refresh</button>
-      <button id="clearAll">Clear all</button>
-    </div>
-
-    <div id="chips" class="chips"></div>
-    
-    <div id="grid" class="grid"></div>
-    <div id="empty" class="empty" hidden>No hay resultados con los filtros actuales.</div>
-    
-    <div class="load-more">
-      <button id="loadMore">Load more</button>
-    </div>
+    <button id="btnFilter" class="btn-icon" title="Filter">
+      <i class="fa-solid fa-sliders"></i>
+    </button>
   </div>
 
-  <script>
-    const state = {
-      all: [],
-      project: "",
-      client: "",
-      brand: "",
-      q: "",
-      draft: false,
-      page: 1,
-      pageSize: 24
+  <div id="filtersRow" class="filters-row">
+    <div class="dd" id="ddProjects">
+      <button class="dd-toggle" id="toggleProjects">
+        <span class="label-clip" id="labelProjects">All Projects</span>
+        <span><span id="countProjects" class="count"></span> ▾</span>
+      </button>
+      <div class="dd-menu" id="menuProjects"></div>
+    </div>
+
+    <div class="dd" id="ddClients">
+      <button class="dd-toggle" id="toggleClients">
+        <span class="label-clip" id="labelClients">All Clients</span>
+        <span><span id="countClients" class="count"></span> ▾</span>
+      </button>
+      <div class="dd-menu" id="menuClients"></div>
+    </div>
+
+    <div class="dd" id="ddBrands">
+      <button class="dd-toggle" id="toggleBrands">
+        <span class="label-clip" id="labelBrands">All Brands</span>
+        <span><span id="countBrands" class="count"></span> ▾</span>
+      </button>
+      <div class="dd-menu" id="menuBrands"></div>
+    </div>
+
+    <input type="text" id="searchInput" placeholder="Search..." 
+      style="padding: 8px 12px; border: 2px solid var(--border); border-radius: 14px; font-size: 13px; min-width: 180px;">
+    
+    <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none;">
+      <input type="checkbox" id="draftOnly"> Drafts only
+    </label>
+
+    <button id="btnClearAll" class="btn" style="background:#fff; color:#111;">Clear all</button>
+  </div>
+
+  <div id="chips" class="chips"></div>
+  
+  <section id="grid" class="grid"></section>
+  <div id="empty" class="empty" style="display:none;">No results with current filters.</div>
+  
+  <div class="load-more">
+    <button id="btnLoadMore" style="display:none;">Load more</button>
+  </div>
+</main>
+
+<div id="modal" class="modal">
+  <div class="modal-content">
+    <button class="modal-close" id="modalClose">×</button>
+    <button class="modal-nav prev" id="modalPrev">‹</button>
+    <button class="modal-nav next" id="modalNext">›</button>
+    <div id="modalAsset"></div>
+    <div id="modalDots" class="modal-dots"></div>
+  </div>
+</div>
+
+<script>
+  const READONLY = new URLSearchParams(window.location.search).get('readonly') === '1';
+  if (READONLY) document.body.classList.add('ro');
+
+  const state = {
+    items: [],
+    filters: { projects: [], clients: [], brands: [] },
+    selectedProject: null,
+    selectedClient: null,
+    selectedBrand: null,
+    searchQuery: "",
+    draftOnly: false,
+    page: 1,
+    pageSize: 24,
+    ddOpen: null,
+    modalAssets: [],
+    modalIndex: 0
+  };
+
+  const $grid = document.getElementById("grid");
+  const $empty = document.getElementById("empty");
+  const $btnRefresh = document.getElementById("btnRefresh");
+  const $btnFilter = document.getElementById("btnFilter");
+  const $filtersRow = document.getElementById("filtersRow");
+  const $chips = document.getElementById("chips");
+  const $btnLoadMore = document.getElementById("btnLoadMore");
+  const $btnClearAll = document.getElementById("btnClearAll");
+  const $searchInput = document.getElementById("searchInput");
+  const $draftOnly = document.getElementById("draftOnly");
+
+  const $ddProjects = document.getElementById("ddProjects");
+  const $toggleProjects = document.getElementById("toggleProjects");
+  const $menuProjects = document.getElementById("menuProjects");
+  const $labelProjects = document.getElementById("labelProjects");
+  const $countProjects = document.getElementById("countProjects");
+
+  const $ddClients = document.getElementById("ddClients");
+  const $toggleClients = document.getElementById("toggleClients");
+  const $menuClients = document.getElementById("menuClients");
+  const $labelClients = document.getElementById("labelClients");
+  const $countClients = document.getElementById("countClients");
+
+  const $ddBrands = document.getElementById("ddBrands");
+  const $toggleBrands = document.getElementById("toggleBrands");
+  const $menuBrands = document.getElementById("menuBrands");
+  const $labelBrands = document.getElementById("labelBrands");
+  const $countBrands = document.getElementById("countBrands");
+
+  const $modal = document.getElementById("modal");
+  const $modalClose = document.getElementById("modalClose");
+  const $modalPrev = document.getElementById("modalPrev");
+  const $modalNext = document.getElementById("modalNext");
+  const $modalAsset = document.getElementById("modalAsset");
+  const $modalDots = document.getElementById("modalDots");
+
+  function debounce(fn, ms) {
+    let t;
+    return (...args) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn(...args), ms);
     };
+  }
 
-    const els = {
-      project: document.getElementById("projectSelect"),
-      client: document.getElementById("clientSelect"),
-      brand: document.getElementById("brandSelect"),
-      search: document.getElementById("search"),
-      draft: document.getElementById("draftOnly"),
-      refresh: document.getElementById("refresh"),
-      clearAll: document.getElementById("clearAll"),
-      chips: document.getElementById("chips"),
-      grid: document.getElementById("grid"),
-      empty: document.getElementById("empty"),
-      count: document.getElementById("count"),
-      loadMore: document.getElementById("loadMore")
-    };
-
-    function debounce(fn, ms) {
-      let t;
-      return (...args) => {
-        clearTimeout(t);
-        t = setTimeout(() => fn(...args), ms);
-      };
-    }
-
-    async function load() {
+  async function load() {
+    try {
       const params = new URLSearchParams({
-        q: state.q,
-        project: state.project,
-        client: state.client,
-        brand: state.brand,
-        draft: state.draft ? "1" : ""
+        q: state.searchQuery,
+        project: state.selectedProject || "",
+        client: state.selectedClient || "",
+        brand: state.selectedBrand || "",
+        draft: state.draftOnly ? "1" : ""
       });
       const res = await fetch(`/api/grid?${params}`);
       const json = await res.json();
-      state.all = json.items || [];
+      if (!json.ok) {
+        console.error(json.error);
+        return;
+      }
+      state.items = json.items || [];
+      state.filters = json.filters || { projects: [], clients: [], brands: [] };
+      populateDropdowns();
       render();
+    } catch (err) {
+      console.error(err);
     }
+  }
 
-    function render() {
-      const items = state.all;
-      els.count.textContent = `${items.length} resultados`;
-      els.empty.hidden = items.length > 0;
+  function populateDropdowns() {
+    const { projects, clients, brands } = state.filters;
+    
+    $menuProjects.innerHTML = '<div class="dd-item' + (!state.selectedProject ? ' active' : '') + '" data-value="">' +
+      '<span class="radio"></span><span class="label">All Projects</span></div>' +
+      projects.map(p => 
+        '<div class="dd-item' + (state.selectedProject === p.id ? ' active' : '') + '" data-value="' + p.id + '">' +
+        '<span class="radio"></span><span class="label">' + (p.name || p.id).substring(0, 30) + '</span></div>'
+      ).join('');
+    
+    $menuClients.innerHTML = '<div class="dd-item' + (!state.selectedClient ? ' active' : '') + '" data-value="">' +
+      '<span class="radio"></span><span class="label">All Clients</span></div>' +
+      clients.map(c => 
+        '<div class="dd-item' + (state.selectedClient === c.id ? ' active' : '') + '" data-value="' + c.id + '">' +
+        '<span class="radio"></span><span class="label">' + (c.name || c.id).substring(0, 30) + '</span></div>'
+      ).join('');
+    
+    updateBrandsDropdown();
+  }
 
-      const slice = items.slice(0, state.page * state.pageSize);
-      els.loadMore.style.display = slice.length < items.length ? "block" : "none";
+  function updateBrandsDropdown() {
+    const { brands } = state.filters;
+    const filtered = state.selectedClient 
+      ? brands.filter(b => b.clientIds && b.clientIds.includes(state.selectedClient))
+      : brands;
+    
+    $ddBrands.style.opacity = filtered.length === 0 ? '0.5' : '1';
+    $ddBrands.style.pointerEvents = filtered.length === 0 ? 'none' : 'auto';
+    
+    $menuBrands.innerHTML = '<div class="dd-item' + (!state.selectedBrand ? ' active' : '') + '" data-value="">' +
+      '<span class="radio"></span><span class="label">All Brands</span></div>' +
+      filtered.map(b => 
+        '<div class="dd-item' + (state.selectedBrand === b.id ? ' active' : '') + '" data-value="' + b.id + '">' +
+        '<span class="radio"></span><span class="label">' + (b.name || b.id).substring(0, 30) + '</span></div>'
+      ).join('');
+    
+    if (filtered.length === 1 && !state.selectedBrand && state.selectedClient) {
+      state.selectedBrand = filtered[0].id;
+      updateBrandsDropdown();
+    }
+  }
 
-      els.grid.innerHTML = slice.map(item => `
-        <div class="card">
-          ${item.pinned ? '<div class="pin-icon">📌</div>' : ''}
-          ${item.assets[0] ? `<img class="card-image" src="${item.assets[0].url}" alt="">` : '<div class="card-image"></div>'}
-          <div class="card-body">
-            <div class="card-title">
-              ${item.title}
-              ${item.isDraft ? '<span class="badge">Draft</span>' : ''}
-            </div>
-          </div>
+  function render() {
+    const items = state.items;
+    const slice = items.slice(0, state.page * state.pageSize);
+    
+    $empty.style.display = items.length === 0 ? 'block' : 'none';
+    $grid.style.display = items.length === 0 ? 'none' : 'grid';
+    $btnLoadMore.style.display = slice.length < items.length ? 'block' : 'none';
+    
+    $grid.innerHTML = slice.map(item => {
+      const thumb = item.thumb || '';
+      return `
+        <div class="card" data-id="${item.id}">
+          ${item.pinned ? '<div class="pin">📌</div>' : ''}
+          ${item.isVideo ? '<div class="video-icon">▶</div>' : ''}
+          ${thumb ? `<img src="${thumb}" alt="${item.title}">` : '<div style="width:100%;height:100%;background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:#999;">No image</div>'}
+          ${item.isDraft ? '<div class="badge">Draft</div>' : ''}
         </div>
-      `).join("");
+      `;
+    }).join('');
+    
+    renderChips();
+    updateDropdownLabels();
+    
+    document.querySelectorAll('.card').forEach(card => {
+      card.onclick = () => {
+        const id = card.dataset.id;
+        const item = items.find(i => i.id === id);
+        if (item && item.assets && item.assets.length > 0) {
+          openModal(item.assets, 0);
+        }
+      };
+    });
+  }
 
-      renderChips();
+  function renderChips() {
+    const chips = [];
+    if (state.selectedProject) {
+      const proj = state.filters.projects.find(p => p.id === state.selectedProject);
+      chips.push({ label: 'Project', value: proj ? (proj.name || proj.id) : state.selectedProject, clear: () => { state.selectedProject = null; state.page = 1; load(); } });
     }
-
-    function renderChips() {
-      const chips = [];
-      if (state.project) chips.push({ label: "Project", value: els.project.selectedOptions[0]?.text, clear: () => { state.project = ""; els.project.value = ""; } });
-      if (state.client) chips.push({ label: "Client", value: els.client.selectedOptions[0]?.text, clear: () => { state.client = ""; state.brand = ""; els.client.value = ""; els.brand.value = ""; } });
-      if (state.brand) chips.push({ label: "Brand", value: els.brand.selectedOptions[0]?.text, clear: () => { state.brand = ""; els.brand.value = ""; } });
-      if (state.q) chips.push({ label: "Búsqueda", value: state.q, clear: () => { state.q = ""; els.search.value = ""; } });
-
-      els.chips.innerHTML = chips.map((c, i) => `
-        <div class="chip">
-          <strong>${c.label}:</strong> ${c.value}
-          <button data-idx="${i}">×</button>
-        </div>
-      `).join("");
-
-      els.chips.querySelectorAll("button").forEach((btn, i) => {
-        btn.onclick = () => {
-          chips[i].clear();
-          state.page = 1;
-          load();
-        };
-      });
+    if (state.selectedClient) {
+      const cli = state.filters.clients.find(c => c.id === state.selectedClient);
+      chips.push({ label: 'Client', value: cli ? (cli.name || cli.id) : state.selectedClient, clear: () => { state.selectedClient = null; state.selectedBrand = null; state.page = 1; load(); } });
     }
+    if (state.selectedBrand) {
+      const br = state.filters.brands.find(b => b.id === state.selectedBrand);
+      chips.push({ label: 'Brand', value: br ? (br.name || br.id) : state.selectedBrand, clear: () => { state.selectedBrand = null; state.page = 1; load(); } });
+    }
+    if (state.searchQuery) {
+      chips.push({ label: 'Search', value: state.searchQuery, clear: () => { state.searchQuery = ""; $searchInput.value = ""; state.page = 1; load(); } });
+    }
+    if (state.draftOnly) {
+      chips.push({ label: 'Drafts', value: 'only', clear: () => { state.draftOnly = false; $draftOnly.checked = false; state.page = 1; load(); } });
+    }
+    
+    $chips.innerHTML = chips.map((c, i) => 
+      `<div class="chip"><strong>${c.label}:</strong> ${c.value} <button data-idx="${i}">×</button></div>`
+    ).join('');
+    
+    $chips.querySelectorAll('button').forEach((btn, i) => {
+      btn.onclick = chips[i].clear;
+    });
+  }
 
-    els.project.onchange = () => { state.project = els.project.value; state.page = 1; load(); };
-    els.client.onchange = () => { state.client = els.client.value; state.brand = ""; els.brand.value = ""; state.page = 1; load(); };
-    els.brand.onchange = () => { state.brand = els.brand.value; state.page = 1; load(); };
-    els.draft.onchange = () => { state.draft = els.draft.checked; state.page = 1; load(); };
-    els.search.addEventListener("input", debounce(() => { state.q = els.search.value.trim(); state.page = 1; load(); }, 250));
-    els.clearAll.onclick = () => {
-      state.project = state.client = state.brand = state.q = "";
-      state.draft = false;
+  function updateDropdownLabels() {
+    $labelProjects.textContent = state.selectedProject 
+      ? (state.filters.projects.find(p => p.id === state.selectedProject)?.name || state.selectedProject).substring(0, 20)
+      : 'All Projects';
+    $labelClients.textContent = state.selectedClient 
+      ? (state.filters.clients.find(c => c.id === state.selectedClient)?.name || state.selectedClient).substring(0, 20)
+      : 'All Clients';
+    $labelBrands.textContent = state.selectedBrand 
+      ? (state.filters.brands.find(b => b.id === state.selectedBrand)?.name || state.selectedBrand).substring(0, 20)
+      : 'All Brands';
+  }
+
+  function openModal(assets, index) {
+    state.modalAssets = assets;
+    state.modalIndex = index;
+    renderModal();
+    $modal.classList.add('visible');
+  }
+
+  function renderModal() {
+    const asset = state.modalAssets[state.modalIndex];
+    if (!asset) return;
+    
+    if (asset.type === 'video') {
+      $modalAsset.innerHTML = `<video src="${asset.url}" controls autoplay style="max-width:100%;max-height:85vh;"></video>`;
+    } else {
+      $modalAsset.innerHTML = `<img src="${asset.url}" style="max-width:100%;max-height:85vh;object-fit:contain;">`;
+    }
+    
+    $modalDots.innerHTML = state.modalAssets.map((_, i) => 
+      `<div class="dot${i === state.modalIndex ? ' active' : ''}" data-idx="${i}"></div>`
+    ).join('');
+    
+    $modalDots.querySelectorAll('.dot').forEach(dot => {
+      dot.onclick = () => {
+        state.modalIndex = parseInt(dot.dataset.idx);
+        renderModal();
+      };
+    });
+    
+    $modalPrev.style.display = state.modalAssets.length > 1 ? 'block' : 'none';
+    $modalNext.style.display = state.modalAssets.length > 1 ? 'block' : 'none';
+  }
+
+  $modalClose.onclick = () => $modal.classList.remove('visible');
+  $modalPrev.onclick = () => {
+    state.modalIndex = (state.modalIndex - 1 + state.modalAssets.length) % state.modalAssets.length;
+    renderModal();
+  };
+  $modalNext.onclick = () => {
+    state.modalIndex = (state.modalIndex + 1) % state.modalAssets.length;
+    renderModal();
+  };
+  $modal.onclick = (e) => { if (e.target === $modal) $modal.classList.remove('visible'); };
+
+  $btnRefresh.onclick = () => { state.page = 1; load(); };
+  $btnFilter.onclick = () => $filtersRow.classList.toggle('open');
+  $btnLoadMore.onclick = () => { state.page++; render(); };
+  $btnClearAll.onclick = () => {
+    state.selectedProject = null;
+    state.selectedClient = null;
+    state.selectedBrand = null;
+    state.searchQuery = "";
+    state.draftOnly = false;
+    state.page = 1;
+    $searchInput.value = "";
+    $draftOnly.checked = false;
+    load();
+  };
+
+  $searchInput.addEventListener('input', debounce(() => {
+    state.searchQuery = $searchInput.value.trim();
+    state.page = 1;
+    load();
+  }, 300));
+
+  $draftOnly.onchange = () => {
+    state.draftOnly = $draftOnly.checked;
+    state.page = 1;
+    load();
+  };
+
+  function setupDropdown($dd, $toggle, $menu, stateKey) {
+    $toggle.onclick = (e) => {
+      e.stopPropagation();
+      if (state.ddOpen && state.ddOpen !== $dd) {
+        state.ddOpen.classList.remove('open');
+      }
+      $dd.classList.toggle('open');
+      state.ddOpen = $dd.classList.contains('open') ? $dd : null;
+    };
+    
+    $menu.onclick = (e) => {
+      const item = e.target.closest('.dd-item');
+      if (!item) return;
+      const value = item.dataset.value;
+      state[stateKey] = value || null;
+      if (stateKey === 'selectedClient') {
+        state.selectedBrand = null;
+        updateBrandsDropdown();
+      }
       state.page = 1;
-      els.project.value = els.client.value = els.brand.value = els.search.value = "";
-      els.draft.checked = false;
+      $dd.classList.remove('open');
+      state.ddOpen = null;
       load();
     };
-    els.loadMore.onclick = () => { state.page++; render(); };
-    els.refresh.onclick = () => load();
+  }
 
-    load();
-  </script>
+  setupDropdown($ddProjects, $toggleProjects, $menuProjects, 'selectedProject');
+  setupDropdown($ddClients, $toggleClients, $menuClients, 'selectedClient');
+  setupDropdown($ddBrands, $toggleBrands, $menuBrands, 'selectedBrand');
+
+  document.addEventListener('click', () => {
+    if (state.ddOpen) {
+      state.ddOpen.classList.remove('open');
+      state.ddOpen = null;
+    }
+  });
+
+  load();
+</script>
 </body>
 </html>
