@@ -1,39 +1,47 @@
-// /api/grid.js  (Vercel Serverless Function)
+// /api/grid.js (Vercel Serverless Function)
 
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
 
 /* ----------------------------- helpers ----------------------------- */
+
 function firstText(arr = []) {
   return (arr[0]?.plain_text ?? "").trim();
 }
+
 function rtText(p) {
   if (!p) return "";
   const arr = p.rich_text || p.title || [];
   return arr.map(x => x.plain_text || "").join("").trim();
 }
+
 function sel(p) {
   if (!p) return "";
   if (p.select && p.select.name) return p.select.name;
   if (p.status && p.status.name) return p.status.name;
   return "";
 }
+
 function checkbox(p) {
   return !!(p && p.checkbox);
 }
+
 function dateStr(p) {
   const v = p?.date?.start || "";
   return v || "";
 }
+
 function urlProp(p) {
   return p?.url || "";
 }
+
 function fileUrl(f) {
   if (!f) return null;
   if (f.type === "file") return f.file?.url || null;
   if (f.type === "external") return f.external?.url || null;
   return null;
 }
+
 function filesToAssets(p) {
   const files = p?.files || [];
   return files.map(f => {
@@ -45,15 +53,15 @@ function filesToAssets(p) {
     return { type, url };
   }).filter(a => a.url);
 }
+
 function getTitleFromProps(p = {}) {
   const candidates = [p?.Title?.title, p?.Name?.title];
   for (const c of candidates) {
     if (Array.isArray(c) && c.length) {
       const t = firstText(c);
-      if (t) return t; // sin "Untitled"
+      if (t) return t;
     }
   }
-  // algunos lo guardan en rich_text
   const rt = [p?.Title?.rich_text, p?.Name?.rich_text];
   for (const c of rt) {
     if (Array.isArray(c) && c.length) {
@@ -63,6 +71,7 @@ function getTitleFromProps(p = {}) {
   }
   return "";
 }
+
 function getUrlFromProps(p = {}, keys = ["URL", "Url", "Link", "Website", "Web", "Sitio"]) {
   for (const k of keys) {
     if (p[k]?.type === "url" && p[k]?.url) return p[k].url;
@@ -73,6 +82,7 @@ function getUrlFromProps(p = {}, keys = ["URL", "Url", "Link", "Website", "Web",
   }
   return null;
 }
+
 function getSelect(p, keyList) {
   for (const k of keyList) {
     const v = p?.[k]?.select?.name || p?.[k]?.status?.name;
@@ -80,6 +90,7 @@ function getSelect(p, keyList) {
   }
   return null;
 }
+
 function getCheckbox(p, keyList) {
   for (const k of keyList) {
     const v = p?.[k]?.checkbox;
@@ -87,6 +98,15 @@ function getCheckbox(p, keyList) {
   }
   return false;
 }
+
+function getRelation(p, keyList) {
+  for (const k of keyList) {
+    const rel = p?.[k]?.relation || [];
+    if (rel.length) return rel.map(r => r.id);
+  }
+  return [];
+}
+
 function isHidden(props = {}) {
   if (getCheckbox(props, ["Hidden", "Hide", "Oculto"])) return true;
   for (const [name, val] of Object.entries(props)) {
@@ -97,6 +117,7 @@ function isHidden(props = {}) {
   }
   return false;
 }
+
 function freqSort(arr) {
   const count = {};
   arr.forEach(x => { count[x] = (count[x] || 0) + 1; });
@@ -104,6 +125,7 @@ function freqSort(arr) {
 }
 
 /* ----------------------------- Notion ----------------------------- */
+
 async function notionFetch(path, body) {
   const r = await fetch(`${NOTION_API}${path}`, {
     method: "POST",
@@ -122,12 +144,21 @@ async function notionFetch(path, body) {
 }
 
 /* ----------------------------- handler ----------------------------- */
+
 export default async function handler(req, res) {
   try {
-    const dbId  = process.env.NOTION_DATABASE_ID;
+    const dbId = process.env.NOTION_DATABASE_ID;
     if (!process.env.NOTION_TOKEN || !dbId) {
       return res.status(200).json({ ok:false, error:"Missing NOTION_TOKEN or NOTION_DATABASE_ID" });
     }
+
+    // Params filtros
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const qText = url.searchParams.get("q") || "";
+    const projectFilter = url.searchParams.get("project") || "";
+    const clientFilter = url.searchParams.get("client") || "";
+    const brandFilter = url.searchParams.get("brand") || "";
+    const draftOnly = url.searchParams.get("draft") === "1";
 
     // 1) GRID PAGES
     const q = await notionFetch(`/databases/${dbId}/query`, {
@@ -140,32 +171,55 @@ export default async function handler(req, res) {
       const p = r.properties || {};
       if (isHidden(p)) continue;
 
-      // Assets (Attachment/Attachments/Media/Image…)
       const assets =
         filesToAssets(p["Attachment"]) ||
         filesToAssets(p["Attachments"]) ||
         filesToAssets(p["Media"]) ||
         filesToAssets(p["Image"]) ||
         [];
-
       const thumb = assets[0]?.url || null;
+
+      const status = getSelect(p, ["Status", "Estado"]) || null;
+      const isDraft = status && status.toLowerCase() === "draft";
+
+      const projectIds = getRelation(p, ["Project", "PostProject", "Proyecto"]);
+      const clientIds = getRelation(p, ["Client", "PostClient", "PostMain", "Main"]);
+      const brandIds = getRelation(p, ["Brand", "PostBrand", "PostBrands", "Brands", "Marca"]);
+
+      const title = getTitleFromProps(p);
+      const caption = rtText(p["Caption"]) || rtText(p["Description"]) || rtText(p["Text"]) || "";
+
+      // Filtros
+      if (projectFilter && !projectIds.includes(projectFilter)) continue;
+      if (clientFilter && !clientIds.includes(clientFilter)) continue;
+      if (brandFilter && !brandIds.includes(brandFilter)) continue;
+      if (draftOnly && !isDraft) continue;
+      if (qText) {
+        const q = qText.toLowerCase();
+        const match = [title, caption].some(t => (t || "").toLowerCase().includes(q));
+        if (!match) continue;
+      }
 
       items.push({
         id: r.id,
-        title: getTitleFromProps(p),
-        caption: rtText(p["Caption"]) || rtText(p["Description"]) || rtText(p["Text"]) || "",
+        title,
+        caption,
         platform: getSelect(p, ["Platform", "Platforms", "Channel", "Social", "Plataforma"]) || "Other",
-        status:   getSelect(p, ["Status", "Estado"]) || null,
-        pinned:   getCheckbox(p, ["Pinned", "Pin", "Destacado", "Fijado"]) || false,
-        date:     dateStr(p["Publish Date"]) || dateStr(p["Date"]) || dateStr(p["Fecha"]) || "",
-        link:     getUrlFromProps(p) || null,
-        assets,                 // [{type:'image'|'video', url}]
+        status,
+        isDraft,
+        pinned: getCheckbox(p, ["Pinned", "Pin", "Destacado", "Fijado"]) || false,
+        date: dateStr(p["Publish Date"]) || dateStr(p["Date"]) || dateStr(p["Fecha"]) || "",
+        link: getUrlFromProps(p) || null,
+        assets,
         isVideo: assets.some(a => a.type === "video"),
-        image: thumb,           // compat con frontend
+        image: thumb,
+        projectIds,
+        clientIds,
+        brandIds,
       });
     }
 
-    // 2) BIO (opcional)
+    // 2) BIO (opcional, mantén igual)
     let bio = null;
     const bioDb = process.env.BIO_DATABASE_ID || process.env.BIO_SETTINGS_DATABASE_ID;
     if (bioDb) {
@@ -177,7 +231,7 @@ export default async function handler(req, res) {
       if (row) {
         const bp = row.properties || {};
         const avatarFiles = filesToAssets(bp["Avatar"]);
-        const bioText = rtText(bp["Bio"]) || rtText(bp["Text"]) || ""; // <- campo Bio de la tabla
+        const bioText = rtText(bp["Bio"]) || rtText(bp["Text"]) || "";
         bio = {
           username: rtText(bp["Username"]) || rtText(bp["Handle"]) || "",
           name: rtText(bp["Name"]) || "",
@@ -188,7 +242,6 @@ export default async function handler(req, res) {
       }
     }
     if (!bio) {
-      // Fallback envs
       bio = {
         username: process.env.BIO_USERNAME || "",
         name: process.env.BIO_NAME || "",
@@ -198,9 +251,9 @@ export default async function handler(req, res) {
       };
     }
 
-    // 3) Filtros dinámicos (por frecuencia) + IG primero
+    // 3) Filtros dinámicos
     const platforms = items.map(i => i.platform).filter(Boolean);
-    const statuses  = items.map(i => i.status).filter(Boolean);
+    const statuses = items.map(i => i.status).filter(Boolean);
     const P = freqSort(platforms);
     const S = freqSort(statuses);
     const igIndex = P.findIndex(x => (x||"").toLowerCase() === "instagram");
