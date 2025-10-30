@@ -49,16 +49,22 @@ function filesToAssets(p) {
   }).filter(a => a.url);
 }
 
-function getRelation(p, keys) {
-  for (const k of keys) {
-    const rel = p?.[k]?.relation || [];
-    if (rel.length) return rel.map(r => ({ id: r.id }));
+function getRollupRelations(p) {
+  if (!p) return [];
+  const rollup = p.rollup;
+  if (!rollup) return [];
+  if (rollup.type === "array") {
+    return rollup.array
+      .filter(item => item.type === "relation")
+      .map(item => item.id);
   }
   return [];
 }
 
-function getRelationIds(p, keys) {
-  return getRelation(p, keys).map(r => r.id);
+function getRelationIds(p) {
+  if (!p) return [];
+  const relation = p.relation || [];
+  return relation.map(r => r.id);
 }
 
 function isHidden(p) {
@@ -75,7 +81,10 @@ async function notionFetch(path, body) {
     },
     body: JSON.stringify(body),
   });
-  if (!r.ok) throw new Error(`Notion ${r.status}`);
+  if (!r.ok) {
+    const text = await r.text().catch(() => "");
+    throw new Error(`Notion ${r.status}: ${text}`);
+  }
   return r.json();
 }
 
@@ -83,58 +92,101 @@ export default async function handler(req, res) {
   try {
     const dbId = process.env.NOTION_DATABASE_ID;
     if (!process.env.NOTION_TOKEN || !dbId) {
-      return res.status(500).json({ error: "Missing credentials" });
+      return res.status(500).json({ error: "Missing NOTION_TOKEN or NOTION_DATABASE_ID" });
     }
 
+    // Query params para filtros
     const url = new URL(req.url, `http://${req.headers.host}`);
-    const qText = url.searchParams.get("q") || "";
+    const qText = (url.searchParams.get("q") || "").toLowerCase();
     const projectFilter = url.searchParams.get("project") || "";
     const clientFilter = url.searchParams.get("client") || "";
     const brandFilter = url.searchParams.get("brand") || "";
     const draftOnly = url.searchParams.get("draft") === "1";
 
-    const q = await notionFetch(`/databases/${dbId}/query`, {
+    // Consultar base Content/Posts
+    const query = await notionFetch(`/databases/${dbId}/query`, {
       sorts: [{ property: "Created time", direction: "descending" }],
       page_size: 100,
     });
 
     const items = [];
-    for (const r of (q.results || [])) {
+    const projects = new Map();
+    const clients = new Map();
+    const brands = new Map();
+
+    for (const r of (query.results || [])) {
       const p = r.properties || {};
+      
+      // Ocultar Hidden
       if (isHidden(p)) continue;
 
-      const assets = filesToAssets(p["Attachment"]) || filesToAssets(p["Media"]) || [];
-      const status = sel(p["Status"]) || "";
-      const isDraft = status.toLowerCase() === "draft";
+      // Cover/Media
+      const coverFiles = p.Cover?.files || [];
+      const mediaFiles = p.Media?.files || [];
+      const assets = filesToAssets({ files: coverFiles.length ? coverFiles : mediaFiles });
+      const thumb = assets[0]?.url || null;
 
-      const projectIds = getRelationIds(p, ["PostProject", "Project"]);
-      const clientIds = getRelationIds(p, ["PostMain", "Client", "PostClient"]);
-      const brandIds = getRelationIds(p, ["PostBrands", "Brands", "Brand"]);
+      // Title
+      const title = rtText(p.Name) || "Untitled";
 
-      const title = rtText(p["Name"]) || rtText(p["Title"]) || "Untitled";
+      // Status y Draft
+      const status = sel(p.Status) || "";
+      const draftCheckbox = checkbox(p.Draft);
+      const isDraft = draftCheckbox || status.toLowerCase() === "draft";
 
+      // Relaciones: PostProject (relation directa), PostMain y PostBrands (rollups)
+      const projectIds = getRelationIds(p.PostProject);
+      const clientIds = getRollupRelations(p.PostMain);
+      const brandIds = getRollupRelations(p.PostBrands);
+
+      // Aplicar filtros
       if (projectFilter && !projectIds.includes(projectFilter)) continue;
       if (clientFilter && !clientIds.includes(clientFilter)) continue;
       if (brandFilter && !brandIds.includes(brandFilter)) continue;
       if (draftOnly && !isDraft) continue;
-      if (qText && !title.toLowerCase().includes(qText.toLowerCase())) continue;
+      if (qText && !title.toLowerCase().includes(qText)) continue;
 
+      // Agregar a resultados
       items.push({
         id: r.id,
         title,
         status,
         isDraft,
-        pinned: checkbox(p["Pinned"]),
+        pinned: checkbox(p.Pinned),
+        thumb,
         assets,
         isVideo: assets.some(a => a.type === "video"),
         projectIds,
         clientIds,
         brandIds,
       });
+
+      // Construir listas de filtros (Projects/Clients/Brands únicos)
+      projectIds.forEach(id => {
+        if (!projects.has(id)) projects.set(id, { id, name: id });
+      });
+      clientIds.forEach(id => {
+        if (!clients.has(id)) clients.set(id, { id, name: id });
+      });
+      brandIds.forEach(id => {
+        if (!brands.has(id)) {
+          brands.set(id, { id, name: id, clientIds: [...clientIds] });
+        }
+      });
     }
 
-    res.status(200).json({ ok: true, items });
+    res.status(200).json({
+      ok: true,
+      items,
+      filters: {
+        projects: Array.from(projects.values()),
+        clients: Array.from(clients.values()),
+        brands: Array.from(brands.values()),
+      }
+    });
+
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 }
