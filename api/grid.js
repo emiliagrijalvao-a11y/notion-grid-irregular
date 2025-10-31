@@ -1,296 +1,295 @@
-// /api/grid.js
-const NOTION_API = "https://api.notion.com/v1";
-const NOTION_VERSION = "2022-06-28";
-const DB_POSTS = process.env.NOTION_DATABASE_ID;
+// pages/api/grid.js
+import { Client } from '@notionhq/client';
 
-const H = {
-  json: (res, code, body) => res.status(code).json(body),
-  titleFromProps(props) {
-    // Busca la primera propiedad tipo "title"
-    for (const [k, v] of Object.entries(props || {})) {
-      if (v?.type === "title") {
-        return (v.title || []).map(t => t.plain_text).join(" ").trim();
-      }
-    }
-    return "";
-  }
+const notion = new Client({ auth: process.env.NOTION_TOKEN });
+const DB_CONTENT = process.env.NOTION_DATABASE_ID;
+
+// (Opcional) si quieres meta super-rápida:
+const DB_CLIENTS  = process.env.NOTION_CLIENTS_DB_ID || null;
+const DB_PROJECTS = process.env.NOTION_PROJECTS_DB_ID || null;
+const DB_BRANDS   = process.env.NOTION_BRANDS_DB_ID || null;
+
+/** Mapea EXACTAMENTE tus nombres de propiedades en Notion */
+const PROPS = {
+  title:         'Name',            // Title
+  date:          'Publish Date',    // Date
+  status:        'Status',          // Status
+  platform:      'Platform',        // Multi-select
+  type:          'Type',            // Select
+  owner:         'Owner',           // Person (usaremos el primero)
+  postClient:    'PostClient',      // Relation -> Clients
+  postProject:   'PostProject',     // Relation -> Projects
+  postBrand:     'PostBrand',       // Relation -> Brands
+  rollClient:    'ClientName',      // Rollup -> Name (Show original)
+  rollProject:   'ProjectName',     // Rollup -> Name (Show original)
+  rollBrand:     'BrandName',       // Rollup -> Name(s)
+  attachment:    'Attachment',      // Files & Media
+  link:          'Link',            // URL
+  canva:         'Canva',           // URL
+  copy:          'Copy',            // Rich text
+  pinned:        'Pinned',          // Checkbox
+  archivedFlag:  'Archivado',       // Checkbox (interno)
+  hideFlag:      'Hide',            // Checkbox (interno)
 };
 
-// ---------- HTTP core -----------
-async function notion(path, opt = {}) {
-  const r = await fetch(`${NOTION_API}${path}`, {
-    method: "GET",
-    ...opt,
-    headers: {
-      "Authorization": `Bearer ${process.env.NOTION_TOKEN}`,
-      "Notion-Version": NOTION_VERSION,
-      "Content-Type": "application/json",
-      ...(opt.headers || {})
-    }
-  });
-  if (!r.ok) {
-    const t = await r.text().catch(()=> "");
-    throw new Error(`Notion ${path} ${r.status}: ${t}`);
+/** Conjunto de Status para "Published Only" (puedes ajustar casing) */
+const PUBLISHED_STATUSES = new Set([
+  'Publicado', 'Entregado', 'Scheduled', 'Aprobado'
+]);
+
+/** Construye filtro base para Notion */
+function buildNotionFilter({ statusMode, client, project, brand }) {
+  const and = [];
+
+  // Excluir SIEMPRE por flags internos (seguimos excluyendo Hide/Archivado checkbox)
+  and.push({ property: PROPS.hideFlag, checkbox: { equals: false } });
+  and.push({ property: PROPS.archivedFlag, checkbox: { equals: false } });
+
+  // Status
+  if (statusMode === 'published') {
+    and.push({
+      or: [...PUBLISHED_STATUSES].map(name => ({
+        property: PROPS.status,
+        status: { equals: name }
+      }))
+    });
   }
-  return r.json();
-}
+  // Si es "all", no filtramos por Status (pero sí por flags internos arriba)
 
-async function queryDb(dbId, body) {
-  return notion(`/databases/${dbId}/query`, {
-    method: "POST",
-    body: JSON.stringify(body || {})
-  });
-}
-
-async function retrievePage(pageId) {
-  return notion(`/pages/${pageId}`);
-}
-
-const cachePageTitle = new Map();
-async function getPageTitle(pageId) {
-  if (!pageId) return "";
-  if (cachePageTitle.has(pageId)) return cachePageTitle.get(pageId);
-  const p = await retrievePage(pageId);
-  const title = H.titleFromProps(p.properties);
-  cachePageTitle.set(pageId, title);
-  return title;
-}
-
-// -------- Mapping helpers ----------
-function pickProp(props, candidates, type) {
-  // Busca por nombre de propiedad candidato y por tipo de Notion
-  for (const name of candidates) {
-    const p = props?.[name];
-    if (!p) continue;
-    if (!type || p.type === type) return { name, prop: p };
+  // Intentamos filtrar por rollups si existen (mejor rendimiento)
+  if (client) {
+    and.push({
+      property: PROPS.rollClient,
+      rich_text: { equals: client }
+    });
   }
-  // si no por nombre: intenta por tipo
-  if (type) {
-    for (const [k, v] of Object.entries(props || {})) {
-      if (v?.type === type) return { name: k, prop: v };
-    }
+  if (project) {
+    and.push({
+      property: PROPS.rollProject,
+      rich_text: { equals: project }
+    });
   }
+  if (brand) {
+    and.push({
+      property: PROPS.rollBrand,
+      rich_text: { equals: brand }
+    });
+  }
+
+  return { and };
+}
+
+/** Helpers para extraer campos */
+const getTitle = (p) => (p?.title || []).map(t => t.plain_text).join('').trim();
+const getRich  = (p) => (p?.rich_text || []).map(t => t.plain_text).join('');
+const getDate  = (p) => p?.date?.start || null;
+const getSelect = (p) => p?.select?.name || null;
+const getMulti  = (p) => (p?.multi_select || []).map(x => x.name);
+const getCheck  = (p) => !!p?.checkbox;
+const getPeople = (p) => (p?.people || []).map(x => x.name).filter(Boolean);
+const getRollText = (p) => {
+  // Rollup Show original de Title -> llega como array de rich_text
+  if (!p) return null;
+  if (p.type === 'rich_text') return (p.rich_text || []).map(t=>t.plain_text).join('') || null;
+  if (p.type === 'title')     return (p.title || []).map(t=>t.plain_text).join('') || null;
+  if (typeof p?.formula?.string === 'string') return p.formula.string;
   return null;
-}
+};
+const isVideo = (url='') => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url);
+const isImage = (url='') => /\.(jpe?g|png|gif|webp|heic|avif)(\?|$)/i.test(url);
 
-function extractFiles(props) {
-  // Posibles nombres: Files, Media, Attachment, Attachments, Archivos
-  const cand = pickProp(props, ["Files", "Media", "Attachment", "Attachments", "Archivos"], "files");
-  const items = cand?.prop?.files || [];
-  return items.map(f => {
-    const url = f.type === "external" ? f.external.url : f.file?.url;
-    const name = f.name || url || "";
-    const type = isVideo(name) ? "video" : "image";
-    return { url, type };
-  }).filter(x => !!x.url);
-}
+function extractAssets(props) {
+  const files = props[PROPS.attachment]?.files || [];
+  const assets = [];
 
-function isVideo(name = "") {
-  const n = name.toLowerCase();
-  return [".mp4",".webm",".mov",".m4v",".avi",".mkv"].some(ext => n.endsWith(ext));
-}
-
-function getCheckbox(props, candidates) {
-  const it = pickProp(props, candidates, "checkbox");
-  return !!it?.prop?.checkbox;
-}
-
-function getDate(props, candidates) {
-  const it = pickProp(props, candidates, "date");
-  return it?.prop?.date?.start || "";
-}
-
-function collectRelationIds(prop) {
-  // relation: { relation: [{id}, ...] }
-  if (!prop) return [];
-  if (prop.type === "relation") return (prop.relation || []).map(r => r.id);
-  // rollup "Show original" puede traer arrays; intentamos extraer ids
-  if (prop.type === "rollup") {
-    const arr = prop.rollup?.array || [];
-    const ids = [];
-    for (const item of arr) {
-      if (item?.type === "relation") {
-        ids.push(...(item.relation || []).map(r => r.id));
-      }
-      if (item?.type === "title") {
-        // si vino ya como título, lo devolvemos como marcador especial
-        ids.push({ __title: (item.title || []).map(t=>t.plain_text).join(" ").trim() });
-      }
-    }
-    return ids;
+  // 1) Attachment
+  for (const f of files) {
+    const url = f.file?.url || f.external?.url || '';
+    if (!url) continue;
+    const type = isVideo(url) ? 'video' : 'image';
+    assets.push({ url, type, source: 'attachment' });
   }
-  return [];
-}
 
-async function resolveManyTitles(idsOrTitles) {
-  const out = [];
-  for (const it of idsOrTitles) {
-    if (!it) continue;
-    if (typeof it === "object" && it.__title) {
-      out.push(it.__title);
-      continue;
-    }
-    const t = await getPageTitle(it);
-    if (t) out.push(t);
+  // 2) Link
+  const linkUrl = props[PROPS.link]?.url || '';
+  if (linkUrl) {
+    assets.push({ url: linkUrl, type: isVideo(linkUrl) ? 'video' : 'image', source: 'link' });
   }
-  return Array.from(new Set(out));
-}
 
-// ---------- Fetch posts (with pagination & filters) ----------
-async function fetchAllPosts({ limit = 400 } = {}) {
-  const results = [];
-  let cursor = undefined;
-  while (results.length < limit) {
-    const resp = await queryDb(DB_POSTS, {
-      start_cursor: cursor,
-      page_size: 100,
-      filter: {
-        and: [
-          // Excluye archivado/oculto (si existen)
-          ...(true ? [{
-            property: "Archivado", checkbox: { equals: false }
-          }] : []),
-          ...(true ? [{
-            property: "Hidden", checkbox: { equals: false }
-          }] : []),
-          ...(true ? [{
-            property: "Oculto", checkbox: { equals: false }
-          }] : []),
-        ]
-      },
-      sorts: [{ property: "Fecha", direction: "descending" }]
-    }).catch(()=>({ results:[], has_more:false }));
-    results.push(...(resp.results || []));
-    if (!resp.has_more) break;
-    cursor = resp.next_cursor;
+  // 3) Canva
+  const canvaUrl = props[PROPS.canva]?.url || '';
+  if (canvaUrl) {
+    assets.push({ url: canvaUrl, type: isVideo(canvaUrl) ? 'video' : 'image', source: 'canva' });
   }
-  return results.slice(0, limit);
+
+  return assets;
 }
 
-async function shapePost(page) {
-  const props = page.properties || {};
+function processPost(page) {
+  const p = page.properties || {};
+  const title = getTitle(p[PROPS.title]);
+  const date  = getDate(p[PROPS.date]);
+  const status = p[PROPS.status]?.status?.name || null;
+  const platforms = getMulti(p[PROPS.platform]);
+  const type = getSelect(p[PROPS.type]);
+  const owners = getPeople(p[PROPS.owner]);
+  const owner = owners[0] || null;
+  const pinned = getCheck(p[PROPS.pinned]);
+  const hidden = getCheck(p[PROPS.hideFlag]);
+  const archived = getCheck(p[PROPS.archivedFlag]);
+  const client = getRollText(p[PROPS.rollClient]);
+  const project = getRollText(p[PROPS.rollProject]);
+  const brand = getRollText(p[PROPS.rollBrand]);
+  const copy = getRich(p[PROPS.copy]);
 
-  // Título y fecha
-  const title = H.titleFromProps(props);
-  const date = getDate(props, ["Fecha", "Date", "Published", "Publish Date"]);
-
-  // Banderas
-  const archived = getCheckbox(props, ["Archivado", "Archived"]);
-  const hidden   = getCheckbox(props, ["Hidden", "Oculto", "Hide", "DraftHide"]);
-  const draft    = getCheckbox(props, ["Draft", "Borrador"]);
-
-  // Archivos
-  const assets = extractFiles(props);
-
-  // Relaciones / rollups:
-  const postProject = pickProp(props, ["PostProject","Project","Proyecto"], "relation") 
-                   || pickProp(props, ["PostProject","Project","Proyecto"], "rollup");
-  const postClient  = pickProp(props, ["PostClient","Client"], "relation")
-                   || pickProp(props, ["PostMain"], "rollup"); // rollup Show original del Client
-  const postBrands  = pickProp(props, ["PostBrands","Brands","Brand"], "rollup")
-                   || pickProp(props, ["PostBrand"], "relation");
-
-  const projectIds = collectRelationIds(postProject?.prop);
-  const clientIds  = collectRelationIds(postClient?.prop);
-  const brandIds   = collectRelationIds(postBrands?.prop);
-
-  const [projectName] = await resolveManyTitles(projectIds);
-  const clientNames   = await resolveManyTitles(clientIds);
-  const brandNames    = await resolveManyTitles(brandIds);
+  const assets = extractAssets(p);
 
   return {
     id: page.id,
-    title, date,
-    archived, hidden, draft,
-    assets,
-    project: projectName || "",
-    client:  clientNames[0] || "",
-    brands:  brandNames || []
+    title, date, status, platforms, type,
+    client, project, brand,
+    owner, pinned, hidden, archived,
+    copy,
+    assets
   };
 }
 
-function applyFilters(posts, { project, client, brand, q, draft }) {
-  const query = (q || "").trim().toLowerCase();
-  return posts.filter(p => {
-    if (p.hidden || p.archived) return false;
-    if (project && p.project !== project) return false;
-    if (client && p.client !== client) return false;
-    if (brand && !(p.brands || []).includes(brand)) return false;
-    if (typeof draft === "boolean") {
-      if (draft !== !!p.draft) return false;
-    }
-    if (query) {
-      const hay = `${p.title} ${p.project} ${p.client} ${(p.brands||[]).join(" ")}`.toLowerCase();
-      if (!hay.includes(query)) return false;
-    }
-    return true;
-  });
+function stableOwnerColor(name) {
+  if (!name) return '#6B7280';
+  const palette = ['#10B981','#8B5CF6','#EC4899','#F59E0B','#3B82F6','#EF4444','#FCD34D','#14B8A6','#A855F7','#22C55E'];
+  let h=0; for (let i=0;i<name.length;i++) h=((h*31)+name.charCodeAt(i))|0;
+  return palette[Math.abs(h)%palette.length];
 }
+const initials = (s) => (s||'').trim().slice(0,2).toUpperCase();
 
-function paginate(arr, page, pageSize) {
-  const p = Math.max(1, parseInt(page || "1", 10));
-  const s = Math.max(1, Math.min(100, parseInt(pageSize || "24", 10)));
-  const start = (p - 1) * s;
-  const end = start + s;
-  return { slice: arr.slice(start, end), hasMore: end < arr.length };
-}
-
-function buildMeta(posts) {
-  const projects = new Set();
-  const clients = new Set();
-  const brandsByClient = {};
-  for (const p of posts) {
-    if (p.project) projects.add(p.project);
-    if (p.client) {
-      clients.add(p.client);
-      brandsByClient[p.client] = brandsByClient[p.client] || new Set();
-      for (const b of (p.brands || [])) brandsByClient[p.client].add(b);
+/** Meta por DBs auxiliares (rápido) */
+async function readSimpleList(dbId) {
+  const out = [];
+  if (!dbId) return out;
+  let cursor = undefined;
+  do {
+    const r = await notion.databases.query({
+      database_id: dbId,
+      page_size: 100,
+      start_cursor: cursor
+    });
+    for (const res of r.results) {
+      const name = getTitle(res.properties?.Name);
+      if (name) out.push(name);
     }
-  }
-  const brandsByClientObj = {};
-  for (const [k, set] of Object.entries(brandsByClient)) {
-    brandsByClientObj[k] = Array.from(set).sort();
-  }
-  return {
-    projects: Array.from(projects).sort(),
-    clients: Array.from(clients).sort(),
-    brandsByClient: brandsByClientObj
-  };
+    cursor = r.has_more ? r.next_cursor : undefined;
+  } while (cursor);
+  return out;
 }
 
 export default async function handler(req, res) {
   try {
-    if (!process.env.NOTION_TOKEN || !DB_POSTS) {
-      return H.json(res, 500, { ok:false, error: "Missing NOTION_TOKEN or NOTION_DATABASE_ID" });
+    const {
+      cursor,
+      limit = '12',
+      q = '',
+      client = '',
+      project = '',
+      brand = '',
+      platform = '',   // comma separated
+      owner = '',      // comma separated
+      status = 'published', // published | all
+      meta = ''
+    } = req.query;
+
+    const pageSize = Math.max(1, Math.min(parseInt(limit,10) || 12, 100));
+    const statusMode = (status === 'all') ? 'all' : 'published';
+
+    // --- Query base a Notion ---
+    const filter = buildNotionFilter({ statusMode, client, project, brand });
+    const sorts = [
+      // Si tienes fórmula PinnedRank (1/0), úsala aquí DESC primero
+      // { property: 'PinnedRank', direction: 'descending' },
+      { property: PROPS.date, direction: 'descending' }
+    ];
+
+    const queryPayload = {
+      database_id: DB_CONTENT,
+      filter,
+      sorts,
+      page_size: pageSize
+    };
+    if (cursor) queryPayload.start_cursor = cursor;
+
+    const r = await notion.databases.query(queryPayload);
+
+    let posts = r.results.map(processPost);
+
+    // --- Filtros que Notion no hace (q, platform, owner) ---
+    const qLower = (q || '').trim().toLowerCase();
+    if (qLower) {
+      posts = posts.filter(p =>
+        (p.title || '').toLowerCase().includes(qLower) ||
+        (p.client || '').toLowerCase().includes(qLower) ||
+        (p.project || '').toLowerCase().includes(qLower)
+      );
     }
 
-    const url = new URL(req.url, "http://x");
-    const q = Object.fromEntries(url.searchParams.entries());
-
-    // Lee todo (hasta 400) y mapea
-    const raw = await fetchAllPosts();
-    const shaped = [];
-    for (const page of raw) {
-      try { shaped.push(await shapePost(page)); } catch (e) {/* swallow per-page */ }
+    if (platform) {
+      const want = new Set(platform.split(',').map(s => s.trim()).filter(Boolean));
+      posts = posts.filter(p => (p.platforms || []).some(pl => want.has(pl)));
     }
 
-    if (q.meta === "1") {
-      const filters = buildMeta(shaped);
-      return H.json(res, 200, { ok:true, filters });
+    if (owner) {
+      const want = new Set(owner.split(',').map(s => s.trim()).filter(Boolean));
+      posts = posts.filter(p => p.owner && want.has(p.owner));
     }
 
-    const wantDraft = q.draft === "1" ? true : (q.draft === "0" ? false : undefined);
-    const filtered = applyFilters(shaped, {
-      project: q.project || "",
-      client:  q.client || "",
-      brand:   q.brand || "",
-      q:       q.q || "",
-      draft:   typeof wantDraft === "boolean" ? wantDraft : undefined
+    // Reordenar por pinned primero (si no usas fórmula PinnedRank)
+    posts.sort((a,b) => {
+      if (a.pinned !== b.pinned) return (a.pinned ? -1 : 1);
+      // fecha desc
+      return (a.date || '') < (b.date || '') ? 1 : -1;
     });
 
-    const { slice, hasMore } = paginate(filtered, q.page, q.pageSize);
-    return H.json(res, 200, { ok:true, posts: slice, hasMore });
-  } catch (e) {
-    return H.json(res, 500, { ok:false, error: e.message });
+    // --- META (opcional) ---
+    let filters = undefined;
+    if (meta === '1') {
+      // Intento rápido por DBs auxiliares
+      let clients = [], projects = [], brands = [];
+      if (DB_CLIENTS && DB_PROJECTS) {
+        clients  = await readSimpleList(DB_CLIENTS);
+        projects = await readSimpleList(DB_PROJECTS);
+        if (DB_BRANDS) brands = await readSimpleList(DB_BRANDS);
+      } else {
+        // Fallback: derivar de este batch (limitado)
+        clients  = Array.from(new Set(posts.map(p=>p.client).filter(Boolean))).sort();
+        projects = Array.from(new Set(posts.map(p=>p.project).filter(Boolean))).sort();
+        brands   = Array.from(new Set(posts.map(p=>p.brand).filter(Boolean))).sort();
+      }
+
+      // Owners (conteo aprox en batch actual)
+      const ownerMap = new Map();
+      for (const p of posts) {
+        if (!p.owner) continue;
+        const c = ownerMap.get(p.owner) || 0;
+        ownerMap.set(p.owner, c+1);
+      }
+      const owners = Array.from(ownerMap.entries()).map(([name,count]) => ({
+        name, count,
+        color: stableOwnerColor(name),
+        initials: initials(name)
+      })).sort((a,b)=> a.name.localeCompare(b.name));
+
+      // Platforms actuales desde batch (o podrías leer schema de la DB)
+      const platforms = Array.from(new Set(posts.flatMap(p => p.platforms || []))).sort();
+
+      filters = { clients, projects, brands, owners, platforms };
+    }
+
+    res.status(200).json({
+      posts,
+      hasMore: r.has_more,
+      nextCursor: r.has_more ? r.next_cursor : null,
+      filters
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'grid_failed', message: err.message });
   }
 }
