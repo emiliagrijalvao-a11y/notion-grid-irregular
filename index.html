@@ -47,9 +47,6 @@
   .modal-content{max-width:90vw;max-height:90vh;position:relative}
   .modal-content img{max-width:100%;max-height:85vh;object-fit:contain}
   .modal-close{position:absolute;top:10px;right:10px;background:rgba(255,255,255,0.9);border:none;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:24px}
-  .modal-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.9);border:none;width:50px;height:50px;border-radius:50%;cursor:pointer;font-size:20px}
-  .modal-nav.prev{left:10px}
-  .modal-nav.next{right:10px}
 </style>
 </head>
 
@@ -74,6 +71,14 @@
       <div class="dd-menu" id="menuStatuses"></div>
     </div>
 
+    <div class="dd" id="ddClients">
+      <button class="dd-toggle" id="toggleClients">
+        <span class="label-clip" id="labelClients">All Clients</span>
+        <span><span id="countClients" class="count"></span> ▾</span>
+      </button>
+      <div class="dd-menu" id="menuClients"></div>
+    </div>
+
     <div class="dd" id="ddProjects">
       <button class="dd-toggle" id="toggleProjects">
         <span class="label-clip" id="labelProjects">All Projects</span>
@@ -82,7 +87,6 @@
       <div class="dd-menu" id="menuProjects"></div>
     </div>
 
-    <input type="text" id="searchInput" placeholder="Search..." style="padding: 8px 12px; border: 2px solid var(--border); border-radius: 14px; font-size: 13px; min-width: 180px;">
     <button id="btnClearAll" class="btn" style="background:#fff; color:#111;">Clear all</button>
   </div>
 
@@ -105,10 +109,10 @@
 <script>
   const state = {
     items: [],
-    filters: { statuses: [], projects: [] },
+    filters: { statuses: [], clients: [], projects: [] },
     selectedStatus: null,
+    selectedClient: null,
     selectedProject: null,
-    searchQuery: "",
     page: 1,
     pageSize: 24,
     ddOpen: null,
@@ -122,12 +126,16 @@
   const $chips = document.getElementById("chips");
   const $btnLoadMore = document.getElementById("btnLoadMore");
   const $btnClearAll = document.getElementById("btnClearAll");
-  const $searchInput = document.getElementById("searchInput");
 
   const $ddStatuses = document.getElementById("ddStatuses");
   const $toggleStatuses = document.getElementById("toggleStatuses");
   const $menuStatuses = document.getElementById("menuStatuses");
   const $labelStatuses = document.getElementById("labelStatuses");
+
+  const $ddClients = document.getElementById("ddClients");
+  const $toggleClients = document.getElementById("toggleClients");
+  const $menuClients = document.getElementById("menuClients");
+  const $labelClients = document.getElementById("labelClients");
 
   const $ddProjects = document.getElementById("ddProjects");
   const $toggleProjects = document.getElementById("toggleProjects");
@@ -140,19 +148,14 @@
 
   async function load() {
     try {
-      const params = new URLSearchParams({
-        q: state.searchQuery,
-        status: state.selectedStatus || "",
-        project: state.selectedProject || ""
-      });
-      const res = await fetch(`/api/grid?${params}`);
+      const res = await fetch(`/api/grid`);
       const json = await res.json();
       if (!json.ok) {
         console.error(json.error);
         return;
       }
       state.items = json.items || [];
-      state.filters = json.filters || { statuses: [], projects: [] };
+      state.filters = json.filters || { statuses: [], clients: [], projects: [] };
       populateDropdowns();
       render();
     } catch (err) {
@@ -161,7 +164,7 @@
   }
 
   function populateDropdowns() {
-    const { statuses, projects } = state.filters;
+    const { statuses, clients, projects } = state.filters;
     
     $menuStatuses.innerHTML = '<div class="dd-item' + (!state.selectedStatus ? ' active' : '') + '" data-value="">' +
       '<span class="radio"></span><span class="label">All Status</span></div>' +
@@ -170,11 +173,18 @@
         '<span class="radio"></span><span class="label">' + s.name + '</span><span class="count">' + s.count + '</span></div>'
       ).join('');
     
+    $menuClients.innerHTML = '<div class="dd-item' + (!state.selectedClient ? ' active' : '') + '" data-value="">' +
+      '<span class="radio"></span><span class="label">All Clients</span></div>' +
+      clients.map(c => 
+        '<div class="dd-item' + (state.selectedClient === c.name ? ' active' : '') + '" data-value="' + c.name + '">' +
+        '<span class="radio"></span><span class="label">' + c.name + '</span><span class="count">' + c.count + '</span></div>'
+      ).join('');
+
     $menuProjects.innerHTML = '<div class="dd-item' + (!state.selectedProject ? ' active' : '') + '" data-value="">' +
       '<span class="radio"></span><span class="label">All Projects</span></div>' +
       projects.map(p => 
-        '<div class="dd-item' + (state.selectedProject === p.id ? ' active' : '') + '" data-value="' + p.id + '">' +
-        '<span class="radio"></span><span class="label">Project ' + p.name.substring(0, 8) + '</span><span class="count">' + p.count + '</span></div>'
+        '<div class="dd-item' + (state.selectedProject === p.name ? ' active' : '') + '" data-value="' + p.name + '">' +
+        '<span class="radio"></span><span class="label">' + p.name + '</span><span class="count">' + p.count + '</span></div>'
       ).join('');
   }
 
@@ -185,11 +195,11 @@
     if (state.selectedStatus) {
       filtered = filtered.filter(i => i.status === state.selectedStatus);
     }
-    if (state.selectedProject) {
-      filtered = filtered.filter(i => i.projectIds.includes(state.selectedProject));
+    if (state.selectedClient) {
+      filtered = filtered.filter(i => i.clientNames && i.clientNames.includes(state.selectedClient));
     }
-    if (state.searchQuery) {
-      filtered = filtered.filter(i => i.title.toLowerCase().includes(state.searchQuery.toLowerCase()));
+    if (state.selectedProject) {
+      filtered = filtered.filter(i => i.projectNames && i.projectNames.includes(state.selectedProject));
     }
 
     const slice = filtered.slice(0, state.page * state.pageSize);
@@ -229,11 +239,11 @@
     if (state.selectedStatus) {
       chips.push({ label: 'Status', value: state.selectedStatus, clear: () => { state.selectedStatus = null; state.page = 1; load(); } });
     }
-    if (state.selectedProject) {
-      chips.push({ label: 'Project', value: state.selectedProject.substring(0, 8), clear: () => { state.selectedProject = null; state.page = 1; load(); } });
+    if (state.selectedClient) {
+      chips.push({ label: 'Client', value: state.selectedClient, clear: () => { state.selectedClient = null; state.page = 1; load(); } });
     }
-    if (state.searchQuery) {
-      chips.push({ label: 'Search', value: state.searchQuery, clear: () => { state.searchQuery = ""; $searchInput.value = ""; state.page = 1; load(); } });
+    if (state.selectedProject) {
+      chips.push({ label: 'Project', value: state.selectedProject, clear: () => { state.selectedProject = null; state.page = 1; load(); } });
     }
     
     $chips.innerHTML = chips.map((c, i) => 
@@ -247,7 +257,8 @@
 
   function updateDropdownLabels() {
     $labelStatuses.textContent = state.selectedStatus || 'All Status';
-    $labelProjects.textContent = state.selectedProject ? ('Project ' + state.selectedProject.substring(0, 8)) : 'All Projects';
+    $labelClients.textContent = state.selectedClient || 'All Clients';
+    $labelProjects.textContent = state.selectedProject || 'All Projects';
   }
 
   $modalClose.onclick = () => $modal.classList.remove('visible');
@@ -258,18 +269,11 @@
   $btnLoadMore.onclick = () => { state.page++; render(); };
   $btnClearAll.onclick = () => {
     state.selectedStatus = null;
+    state.selectedClient = null;
     state.selectedProject = null;
-    state.searchQuery = "";
     state.page = 1;
-    $searchInput.value = "";
     load();
   };
-
-  $searchInput.addEventListener('input', () => {
-    state.searchQuery = $searchInput.value.trim();
-    state.page = 1;
-    render();
-  });
 
   function setupDropdown($dd, $toggle, $menu, stateKey) {
     $toggle.onclick = (e) => {
@@ -294,6 +298,7 @@
   }
 
   setupDropdown($ddStatuses, $toggleStatuses, $menuStatuses, 'selectedStatus');
+  setupDropdown($ddClients, $toggleClients, $menuClients, 'selectedClient');
   setupDropdown($ddProjects, $toggleProjects, $menuProjects, 'selectedProject');
 
   document.addEventListener('click', () => {
