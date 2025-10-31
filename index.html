@@ -1,344 +1,324 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Content Grid - Mitch</title>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
-<script src="https://animatedicons.co/scripts/embed-animated-icons.js"></script>
-<style>
-  :root{--bg:#fff; --text:#111; --muted:#f7f7f7; --border:#e5e7eb; --blue:#1B4B91; --container:936px; --gap:1px; --ui-font:13px; --ui-pad-y:8px; --ui-pad-x:12px; --ui-radius:14px; --dd-minw:140px;}
-  *{box-sizing:border-box}
-  html,body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
-  .wrap{max-width:var(--container);margin:0 auto;padding:14px}
-  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:10px;justify-content:center;}
-  .btn{border:1px solid var(--border);background:#111;color:#fff;padding:var(--ui-pad-y) var(--ui-pad-x);font-weight:700;cursor:pointer;border-radius:10px;font-size:var(--ui-font);display:inline-flex;align-items:center;gap:8px}
-  .btn-icon{width:36px;height:36px;border:2px solid var(--border);background:#fff;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
-  .filters-row{display:none;gap:10px;align-items:center;justify-content:center;padding:6px 0 12px;border-bottom:1px solid var(--border);margin-bottom:10px;flex-wrap:wrap}
-  .filters-row.open{display:flex}
-  .dd{position:relative}
-  .dd-toggle{border:2px solid var(--border);background:#f6f6f6;padding:var(--ui-pad-y) var(--ui-pad-x);min-width:var(--dd-minw);max-width:200px;cursor:pointer;display:inline-flex;justify-content:space-between;align-items:center;gap:8px;border-radius:var(--ui-radius);font-weight:600;font-size:var(--ui-font);white-space:nowrap}
-  .dd-toggle .label-clip{overflow:hidden;text-overflow:ellipsis}
-  .dd-toggle .count{color:#999;margin-left:6px;font-size:12px;flex-shrink:0}
-  .dd-menu{position:absolute;top:calc(100% + 8px);left:0;min-width:100%;background:#fff;border:1px solid var(--border);box-shadow:0 8px 24px rgba(0,0,0,.12);display:none;z-index:30;border-radius:12px;padding:6px;max-height:300px;overflow-y:auto}
-  .dd.open .dd-menu{display:block}
-  .dd-item{padding:8px 10px;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:13px;border-radius:8px}
-  .dd-item:hover{background:#f9fafb}
-  .dd-item .radio{width:16px;height:16px;border:2px solid #ddd;border-radius:50%;position:relative;flex-shrink:0}
-  .dd-item.active .radio{border-color:#111}
-  .dd-item.active .radio::after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:7px;height:7px;background:#111;border-radius:50%}
-  .dd-item .label{flex:1}
-  .dd-item .count{color:#999;font-size:12px}
-  .chips{display:flex;gap:8px;flex-wrap:wrap;padding:10px 0;min-height:20px}
-  .chip{background:#f0f0f0;border:1px solid var(--border);border-radius:16px;padding:4px 10px;font-size:12px;display:flex;align-items:center;gap:6px}
-  .chip button{border:none;background:transparent;cursor:pointer;padding:0;font-size:14px;line-height:1;font-weight:600}
-  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--gap);margin-bottom:16px}
-  @media(max-width:768px){.grid{grid-template-columns:repeat(2,1fr)}}
-  @media(max-width:480px){.grid{grid-template-columns:1fr}}
-  .card{position:relative;aspect-ratio:1;overflow:hidden;cursor:pointer;background:#f5f5f5}
-  .card img{width:100%;height:100%;object-fit:cover}
-  .card .pin{position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9);border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:14px}
-  .card .badge{position:absolute;bottom:8px;left:8px;background:rgba(255,243,205,0.95);color:#856404;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600}
-  .load-more{text-align:center;margin:20px 0}
-  .load-more button{padding:10px 20px;border:2px solid var(--border);background:#fff;cursor:pointer;border-radius:10px;font-weight:600;font-size:13px}
-  .empty{text-align:center;padding:60px 20px;color:#999;font-size:14px}
-  .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:999;align-items:center;justify-content:center;padding:20px}
-  .modal.visible{display:flex}
-  .modal-content{max-width:90vw;max-height:90vh;position:relative}
-  .modal-content img{max-width:100%;max-height:85vh;object-fit:contain}
-  .modal-close{position:absolute;top:10px;right:10px;background:rgba(255,255,255,0.9);border:none;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:24px}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Notion Grid Widget</title>
+
+  <!-- Load styles and icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      --bg-color: #fff; --text-color: #111;
+      margin: 0; padding: 15px; background: var(--bg-color); color: var(--text-color);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 8px;
+    }
+
+    .card {
+      position: relative;
+      background: #f7f7f7;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      min-height: 180px;
+      display: flex; align-items: center; justify-content: center;
+      color: #999;
+      font-size: 14px;
+      user-select: none;
+    }
+
+    /* Placeholder for empty cards */
+    .card.empty {
+      background: #cce5cc; /* light green */
+      font-style: italic;
+      font-weight: 500;
+    }
+
+    .card.empty .label-irregular {
+      position: absolute;
+      top: 5px;
+      left: 5px;
+      color: #2d7a2d; /* dark green */
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .card img, .card video {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 10px;
+    }
+
+    /* Overlay text on hover/tap */
+    .overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 6px 8px;
+      font-size: 13px;
+      display: none;
+      justify-content: space-between;
+      border-bottom-left-radius: 10px;
+      border-bottom-right-radius: 10px;
+    }
+
+    .card:hover .overlay,
+    .card:focus-within .overlay {
+      display: flex;
+    }
+
+    /* Video icon badge */
+    .badge-video {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: #fff;
+      color: #333;
+      border-radius: 50%;
+      font-size: 12px;
+      padding: 3px 6px;
+      font-weight: bold;
+      opacity: 0.8;
+    }
+
+    /* Carousel icon badge */
+    .badge-carousel {
+      position: absolute;
+      top: 6px;
+      right: 30px;
+      background: white;
+      color: #000;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: bold;
+      padding: 2px 6px;
+      opacity: 0.7;
+    }
+
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      position: relative;
+      max-width: 90vw;
+      max-height: 90vh;
+      background: #111;
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    .modal-header {
+      color: white;
+      padding: 10px;
+      text-align: center;
+      font-size: 18px;
+    }
+
+    .modal-body {
+      flex-grow: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .modal-media {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: black;
+    }
+
+    /* Navigation buttons */
+    .modal-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      color: white;
+      font-size: 30px;
+      background: rgba(0,0,0,0.4);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      line-height: 40px;
+      text-align: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .modal-prev {
+      left: 10px;
+    }
+    .modal-next {
+      right: 10px;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .card {
+        min-height: 250px;
+      }
+    }
+  </style>
 </head>
-
 <body>
-<main class="wrap">
-  <div class="toolbar">
-    <button id="btnRefresh" class="btn">
-      <animated-icons id="aiRefresh" src="https://animatedicons.co/get-icon?name=Restart&style=minimalistic&token=13c130bf-0940-48c2-92e3-16b6ffe3b232" trigger="click" attributes='{"variationThumbColour":"#FFFFFF","variationName":"Normal","variationNumber":1,"numberOfGroups":1,"backgroundIsGroup":false,"strokeWidth":1.48,"defaultColours":{"group-1":"#FFFFFFFF","background":"#FFFFFF"}}' height="18" width="18"></animated-icons>
-      Refresh
-    </button>
-    <button id="btnFilter" class="btn-icon" title="Filter">
-      <i class="fa-solid fa-sliders"></i>
-    </button>
+
+  <div class="grid" id="gridContainer">
+    <!-- Cards dynamically inserted here -->
   </div>
 
-  <div id="filtersRow" class="filters-row">
-    <div class="dd" id="ddStatuses">
-      <button class="dd-toggle" id="toggleStatuses">
-        <span class="label-clip" id="labelStatuses">All Status</span>
-        <span><span id="countStatuses" class="count"></span> ▾</span>
-      </button>
-      <div class="dd-menu" id="menuStatuses"></div>
+  <div id="modal" class="modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-content">
+      <div class="modal-header" id="modalTitle"></div>
+      <div class="modal-body">
+        <img id="modalImage" class="modal-media" alt="" />
+        <video id="modalVideo" class="modal-media" controls style="display:none;"></video>
+      </div>
+      <div class="modal-nav modal-prev" tabindex="0" role="button" aria-label="Previous">&#10094;</div>
+      <div class="modal-nav modal-next" tabindex="0" role="button" aria-label="Next">&#10095;</div>
     </div>
-
-    <div class="dd" id="ddClients">
-      <button class="dd-toggle" id="toggleClients">
-        <span class="label-clip" id="labelClients">All Clients</span>
-        <span><span id="countClients" class="count"></span> ▾</span>
-      </button>
-      <div class="dd-menu" id="menuClients"></div>
-    </div>
-
-    <div class="dd" id="ddProjects">
-      <button class="dd-toggle" id="toggleProjects">
-        <span class="label-clip" id="labelProjects">All Projects</span>
-        <span><span id="countProjects" class="count"></span> ▾</span>
-      </button>
-      <div class="dd-menu" id="menuProjects"></div>
-    </div>
-
-    <div class="dd" id="ddBrands">
-      <button class="dd-toggle" id="toggleBrands">
-        <span class="label-clip" id="labelBrands">All Brands</span>
-        <span><span id="countBrands" class="count"></span> ▾</span>
-      </button>
-      <div class="dd-menu" id="menuBrands"></div>
-    </div>
-
-    <button id="btnClearAll" class="btn" style="background:#fff; color:#111;">Clear all</button>
   </div>
 
-  <div id="chips" class="chips"></div>
-  <section id="grid" class="grid"></section>
-  <div id="empty" class="empty" style="display:none;">No results with current filters.</div>
-  
-  <div class="load-more">
-    <button id="btnLoadMore" style="display:none;">Load more</button>
-  </div>
-</main>
+  <script>
+    // Simula fetch posts (remplazar con llamada a /api/grid)
+    const posts = [
+      // Ejemplo de posts con propiedades simuladas...
+    ];
 
-<div id="modal" class="modal">
-  <div class="modal-content">
-    <button class="modal-close" id="modalClose">×</button>
-    <div id="modalAsset"></div>
-  </div>
-</div>
+    const gridContainer = document.getElementById('gridContainer');
+    const modal = document.getElementById('modal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalImage = document.getElementById('modalImage');
+    const modalVideo = document.getElementById('modalVideo');
 
-<script>
-  const state = {
-    items: [],
-    filters: { statuses: [], clients: [], projects: [], brands: [] },
-    selectedStatus: null,
-    selectedClient: null,
-    selectedProject: null,
-    selectedBrand: null,
-    page: 1,
-    pageSize: 24,
-    ddOpen: null,
-  };
+    function createCard(post) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      if(!post || !post.assets || post.assets.length === 0) {
+        card.classList.add('empty');
+        card.innerHTML = '<div class="label-irregular">Irregular</div>No hay contenido aún';
+        return card;
+      }
 
-  const $grid = document.getElementById("grid");
-  const $empty = document.getElementById("empty");
-  const $btnRefresh = document.getElementById("btnRefresh");
-  const $btnFilter = document.getElementById("btnFilter");
-  const $filtersRow = document.getElementById("filtersRow");
-  const $chips = document.getElementById("chips");
-  const $btnLoadMore = document.getElementById("btnLoadMore");
-  const $btnClearAll = document.getElementById("btnClearAll");
+      const mainAsset = post.assets[0];
+      if(mainAsset.type === 'video') {
+        const video = document.createElement('video');
+        video.src = mainAsset.url;
+        video.setAttribute('muted', '');
+        video.setAttribute('playsinline', '');
+        video.className = 'card-video';
+        card.appendChild(video);
+      } else {
+        const img = document.createElement('img');
+        img.src = mainAsset.url;
+        img.alt = post.title || '';
+        card.appendChild(img);
+      }
 
-  const $ddStatuses = document.getElementById("ddStatuses");
-  const $toggleStatuses = document.getElementById("toggleStatuses");
-  const $menuStatuses = document.getElementById("menuStatuses");
-  const $labelStatuses = document.getElementById("labelStatuses");
+      // Overlay
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay';
+      overlay.textContent = `${post.title} - ${post.date || ''}`;
+      card.appendChild(overlay);
 
-  const $ddClients = document.getElementById("ddClients");
-  const $toggleClients = document.getElementById("toggleClients");
-  const $menuClients = document.getElementById("menuClients");
-  const $labelClients = document.getElementById("labelClients");
+      // Video badge if needed
+      if(post.assets.length > 0 && post.assets[0].type === 'video') {
+        const badge = document.createElement('div');
+        badge.className = 'badge-video';
+        badge.textContent = '▶';
+        card.appendChild(badge);
+      }
 
-  const $ddProjects = document.getElementById("ddProjects");
-  const $toggleProjects = document.getElementById("toggleProjects");
-  const $menuProjects = document.getElementById("menuProjects");
-  const $labelProjects = document.getElementById("labelProjects");
+      // Carousel badge if multiple assets
+      if(post.assets.length > 1) {
+        const carouselBadge = document.createElement('div');
+        carouselBadge.className = 'badge-carousel';
+        carouselBadge.textContent = 'IG';
+        card.appendChild(carouselBadge);
+      }
 
-  const $ddBrands = document.getElementById("ddBrands");
-  const $toggleBrands = document.getElementById("toggleBrands");
-  const $menuBrands = document.getElementById("menuBrands");
-  const $labelBrands = document.getElementById("labelBrands");
+      // Hover play video
+      if(post.assets.length > 0 && post.assets[0].type === 'video') {
+        const video = card.querySelector('video');
+        card.addEventListener('mouseenter', () => video.play());
+        card.addEventListener('mouseleave', () => video.pause());
+      }
 
-  const $modal = document.getElementById("modal");
-  const $modalClose = document.getElementById("modalClose");
-  const $modalAsset = document.getElementById("modalAsset");
+      // Click to open modal
+      card.addEventListener('click', () => {
+        // Mostrar modal con contenido del post (simplificado)
+        if (post.assets[0].type === 'video') {
+          modalVideo.src = post.assets[0].url;
+          modalVideo.style.display = 'block';
+          modalImage.style.display = 'none';
+          modalVideo.play();
+        } else {
+          modalImage.src = post.assets[0].url;
+          modalImage.style.display = 'block';
+          modalVideo.style.display = 'none';
+          modalVideo.pause();
+        }
+        modalTitle.textContent = post.title;
+        modal.style.display = 'flex';
+        modal.focus();
+      });
 
-  async function load() {
-    try {
-      const res = await fetch(`/api/grid`);
-      const json = await res.json();
-      if (!json.ok) {
-        console.error(json.error);
+      return card;
+    }
+
+    function renderGrid(posts) {
+      gridContainer.innerHTML = '';
+      if(!posts || posts.length === 0) {
+        // Render algunos cards vacíos para efecto diferencial
+        for(let i = 0; i < 6; i++) {
+          gridContainer.appendChild(createCard(null));
+        }
         return;
       }
-      state.items = json.items || [];
-      state.filters = json.filters || { statuses: [], clients: [], projects: [], brands: [] };
-      populateDropdowns();
-      render();
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  function populateDropdowns() {
-    const { statuses, clients, projects, brands } = state.filters;
-    
-    $menuStatuses.innerHTML = '<div class="dd-item' + (!state.selectedStatus ? ' active' : '') + '" data-value="">' +
-      '<span class="radio"></span><span class="label">All Status</span></div>' +
-      statuses.map(s => 
-        '<div class="dd-item' + (state.selectedStatus === s.name ? ' active' : '') + '" data-value="' + s.name + '">' +
-        '<span class="radio"></span><span class="label">' + s.name + '</span><span class="count">' + s.count + '</span></div>'
-      ).join('');
-    
-    $menuClients.innerHTML = '<div class="dd-item' + (!state.selectedClient ? ' active' : '') + '" data-value="">' +
-      '<span class="radio"></span><span class="label">All Clients</span></div>' +
-      clients.map(c => 
-        '<div class="dd-item' + (state.selectedClient === c.name ? ' active' : '') + '" data-value="' + c.name + '">' +
-        '<span class="radio"></span><span class="label">' + c.name + '</span><span class="count">' + c.count + '</span></div>'
-      ).join('');
-
-    $menuProjects.innerHTML = '<div class="dd-item' + (!state.selectedProject ? ' active' : '') + '" data-value="">' +
-      '<span class="radio"></span><span class="label">All Projects</span></div>' +
-      projects.map(p => 
-        '<div class="dd-item' + (state.selectedProject === p.name ? ' active' : '') + '" data-value="' + p.name + '">' +
-        '<span class="radio"></span><span class="label">' + p.name + '</span><span class="count">' + p.count + '</span></div>'
-      ).join('');
-
-    $menuBrands.innerHTML = '<div class="dd-item' + (!state.selectedBrand ? ' active' : '') + '" data-value="">' +
-      '<span class="radio"></span><span class="label">All Brands</span></div>' +
-      brands.map(b => 
-        '<div class="dd-item' + (state.selectedBrand === b.name ? ' active' : '') + '" data-value="' + b.name + '">' +
-        '<span class="radio"></span><span class="label">' + b.name + '</span><span class="count">' + b.count + '</span></div>'
-      ).join('');
-  }
-
-  function render() {
-    const items = state.items;
-    let filtered = items;
-
-    if (state.selectedStatus) {
-      filtered = filtered.filter(i => i.status === state.selectedStatus);
-    }
-    if (state.selectedClient) {
-      filtered = filtered.filter(i => i.clientNames && i.clientNames.includes(state.selectedClient));
-    }
-    if (state.selectedProject) {
-      filtered = filtered.filter(i => i.projectNames && i.projectNames.includes(state.selectedProject));
-    }
-    if (state.selectedBrand) {
-      filtered = filtered.filter(i => i.brandNames && i.brandNames.includes(state.selectedBrand));
+      posts.forEach(post => {
+        gridContainer.appendChild(createCard(post));
+      });
     }
 
-    const slice = filtered.slice(0, state.page * state.pageSize);
-    
-    $empty.style.display = filtered.length === 0 ? 'block' : 'none';
-    $grid.style.display = filtered.length === 0 ? 'none' : 'grid';
-    $btnLoadMore.style.display = slice.length < filtered.length ? 'block' : 'none';
-    
-    $grid.innerHTML = slice.map(item => {
-      const thumb = item.thumb || '';
-      return `
-        <div class="card" data-id="${item.id}">
-          ${item.pinned ? '<div class="pin">📌</div>' : ''}
-          ${thumb ? `<img src="${thumb}" alt="${item.title}">` : '<div style="width:100%;height:100%;background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:#999;">No image</div>'}
-          ${item.isDraft ? '<div class="badge">Draft</div>' : ''}
-        </div>
-      `;
-    }).join('');
-    
-    renderChips();
-    updateDropdownLabels();
-    
-    document.querySelectorAll('.card').forEach(card => {
-      card.onclick = () => {
-        const id = card.dataset.id;
-        const item = items.find(i => i.id === id);
-        if (item && item.assets && item.assets.length > 0) {
-          $modalAsset.innerHTML = `<img src="${item.assets[0].url}" style="max-width:100%;max-height:85vh;object-fit:contain;">`;
-          $modal.classList.add('visible');
-        }
-      };
-    });
-  }
+    renderGrid(posts);
 
-  function renderChips() {
-    const chips = [];
-    if (state.selectedStatus) {
-      chips.push({ label: 'Status', value: state.selectedStatus, clear: () => { state.selectedStatus = null; state.page = 1; load(); } });
-    }
-    if (state.selectedClient) {
-      chips.push({ label: 'Client', value: state.selectedClient, clear: () => { state.selectedClient = null; state.page = 1; load(); } });
-    }
-    if (state.selectedProject) {
-      chips.push({ label: 'Project', value: state.selectedProject, clear: () => { state.selectedProject = null; state.page = 1; load(); } });
-    }
-    if (state.selectedBrand) {
-      chips.push({ label: 'Brand', value: state.selectedBrand, clear: () => { state.selectedBrand = null; state.page = 1; load(); } });
-    }
-    
-    $chips.innerHTML = chips.map((c, i) => 
-      `<div class="chip"><strong>${c.label}:</strong> ${c.value} <button data-idx="${i}">×</button></div>`
-    ).join('');
-    
-    $chips.querySelectorAll('button').forEach((btn, i) => {
-      btn.onclick = chips[i].clear;
-    });
-  }
-
-  function updateDropdownLabels() {
-    $labelStatuses.textContent = state.selectedStatus || 'All Status';
-    $labelClients.textContent = state.selectedClient || 'All Clients';
-    $labelProjects.textContent = state.selectedProject || 'All Projects';
-    $labelBrands.textContent = state.selectedBrand || 'All Brands';
-  }
-
-  $modalClose.onclick = () => $modal.classList.remove('visible');
-  $modal.onclick = (e) => { if (e.target === $modal) $modal.classList.remove('visible'); };
-
-  $btnRefresh.onclick = () => { state.page = 1; load(); };
-  $btnFilter.onclick = () => $filtersRow.classList.toggle('open');
-  $btnLoadMore.onclick = () => { state.page++; render(); };
-  $btnClearAll.onclick = () => {
-    state.selectedStatus = null;
-    state.selectedClient = null;
-    state.selectedProject = null;
-    state.selectedBrand = null;
-    state.page = 1;
-    load();
-  };
-
-  function setupDropdown($dd, $toggle, $menu, stateKey) {
-    $toggle.onclick = (e) => {
-      e.stopPropagation();
-      if (state.ddOpen && state.ddOpen !== $dd) {
-        state.ddOpen.classList.remove('open');
+    // Modal close on background or escape
+    modal.addEventListener('click', e => {
+      if(e.target === modal || e.key === 'Escape') {
+        modal.style.display = 'none';
+        modalVideo.pause();
       }
-      $dd.classList.toggle('open');
-      state.ddOpen = $dd.classList.contains('open') ? $dd : null;
-    };
-    
-    $menu.onclick = (e) => {
-      const item = e.target.closest('.dd-item');
-      if (!item) return;
-      const value = item.dataset.value;
-      state[stateKey] = value || null;
-      state.page = 1;
-      $dd.classList.remove('open');
-      state.ddOpen = null;
-      load();
-    };
-  }
+    });
 
-  setupDropdown($ddStatuses, $toggleStatuses, $menuStatuses, 'selectedStatus');
-  setupDropdown($ddClients, $toggleClients, $menuClients, 'selectedClient');
-  setupDropdown($ddProjects, $toggleProjects, $menuProjects, 'selectedProject');
-  setupDropdown($ddBrands, $toggleBrands, $menuBrands, 'selectedBrand');
+    // Modal navigation simplified: solo cerrar
+    document.addEventListener('keydown', e => {
+      if(e.key === 'Escape') {
+        modal.style.display = 'none';
+        modalVideo.pause();
+      }
+    });
 
-  document.addEventListener('click', () => {
-    if (state.ddOpen) {
-      state.ddOpen.classList.remove('open');
-      state.ddOpen = null;
-    }
-  });
-
-  load();
-</script>
+  </script>
 </body>
 </html>
