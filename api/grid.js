@@ -1,4 +1,4 @@
-// /api/grid.js - VERSIÓN FINAL CORRECTA
+// /api/grid.js
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
 
@@ -26,22 +26,6 @@ async function notionFetch(path, body) {
   return r.json();
 }
 
-async function getPageImage(pageId) {
-  try {
-    const resp = await notionFetch(`/blocks/${pageId}/children`, { page_size: 10 });
-    for (const block of resp.results || []) {
-      if (block.type === "image") {
-        const img = block.image;
-        if (img?.external?.url) return img.external.url;
-        if (img?.file?.url) return img.file.url;
-      }
-    }
-  } catch (e) {
-    console.error(`Error getting image for ${pageId}:`, e);
-  }
-  return null;
-}
-
 export default async function handler(req, res) {
   try {
     const dbId = process.env.NOTION_DATABASE_ID;
@@ -52,50 +36,41 @@ export default async function handler(req, res) {
     const clients = new Map();
     const brands = new Map();
 
-    // Obtener imágenes en paralelo
-    const itemsWithImages = await Promise.all(
-      (query.results || []).map(async (r) => {
-        const p = r.properties || {};
-        const titleProp = p[""] || p["Name"];
-        const title = rtText(titleProp) || "Untitled";
-        const hideVal = checkbox(p["Hide"]);
-        
-        if (hideVal) return null;
+    for (const r of (query.results || [])) {
+      const p = r.properties || {};
+      
+      const hideVal = checkbox(p["Hide"]);
+      if (hideVal) continue;
 
-        let thumb = null;
-        // Intentar obtener imagen de Attachment
-        if (p.Attachment?.files?.length > 0) {
-          const f = p.Attachment.files[0];
-          thumb = f.external?.url || f.file?.url;
-        }
-        // Si no, intentar del Link
-        if (!thumb && p.Link?.url) {
-          thumb = p.Link.url;
-        }
-        // Si aún no, buscar en los bloques de la página
-        if (!thumb) {
-          thumb = await getPageImage(r.id);
-        }
+      // Título
+      const titleProp = p[""] || p["Name"];
+      const title = rtText(titleProp) || "Untitled";
 
-        return { r, p, title, thumb };
-      })
-    );
+      // Imágenes
+      const attachmentFiles = p.Attachment?.files || [];
+      let assets = attachmentFiles.map(f => ({
+        type: "image",
+        url: f.external?.url || f.file?.url
+      })).filter(a => a.url);
 
-    for (const item of itemsWithImages) {
-      if (!item) continue;
-      const { r, p, title, thumb } = item;
+      let thumb = assets[0]?.url || (p.Link?.url ? p.Link.url : null);
 
+      // Status y Draft
       const draftFormula = p.Draft?.formula?.boolean || false;
       const status = p.Status?.status?.name || "";
       const isDraft = draftFormula;
 
+      // Relaciones - IMPORTANTES
+      // PostProject es una RELATION directa
       const projectIds = (p.PostProject?.relation || []).map(x => x.id);
-      const clientIds = (p.PostClient?.rollup?.array || [])
-        .filter(x => x.type === "relation")
-        .map(x => x.id);
-      const brandIds = (p.PostBrands?.rollup?.array || [])
-        .filter(x => x.type === "relation")
-        .map(x => x.id);
+      
+      // PostClient es una ROLLUP (array de people)
+      const clientRollup = p.PostClient?.rollup?.array || [];
+      const clientIds = clientRollup.map(item => item.id); // IDs de los clientes
+      
+      // PostBrands es una ROLLUP (array de relations)
+      const brandRollup = p.PostBrands?.rollup?.array || [];
+      const brandIds = brandRollup.map(item => item.id); // IDs de los brands
 
       items.push({
         id: r.id,
@@ -104,13 +79,14 @@ export default async function handler(req, res) {
         isDraft,
         pinned: checkbox(p.Pinned),
         thumb,
-        assets: thumb ? [{ type: "image", url: thumb }] : [],
+        assets,
         isVideo: false,
         projectIds,
         clientIds,
         brandIds,
       });
 
+      // Construir filtros
       projectIds.forEach(id => {
         if (!projects.has(id)) projects.set(id, { id, name: id });
       });
@@ -118,7 +94,7 @@ export default async function handler(req, res) {
         if (!clients.has(id)) clients.set(id, { id, name: id });
       });
       brandIds.forEach(id => {
-        if (!brands.has(id)) brands.set(id, { id, name: id, clientIds: [...clientIds] });
+        if (!brands.has(id)) brands.set(id, { id, name: id });
       });
     }
 
