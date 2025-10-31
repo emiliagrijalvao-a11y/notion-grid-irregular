@@ -1,361 +1,200 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Posts</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-
-<header class="toolbar">
-  <div class="toolbar-left">
-    <h1 class="title">Posts <span id="count" class="count"></span></h1>
-  </div>
-  <div class="toolbar-right">
-    <button id="btnRefresh" class="btn">Refresh</button>
-  </div>
-</header>
-
-<section class="filters">
-  <!-- fila 1 -->
-  <div class="filters-row">
-    <select id="selClient" aria-label="Client">
-      <option value="">All Clients</option>
+  <h1>Posts</h1>
+  
+  <button id="refresh-btn">Refresh</button>
+  
+  <div class="filters">
+    <select id="client-filter">
+      <option value="all">All Clients</option>
     </select>
-    <select id="selProject" aria-label="Project">
-      <option value="">All Projects</option>
+    
+    <select id="project-filter">
+      <option value="all">All Projects</option>
     </select>
-
-    <select id="selBrand" aria-label="Brand" disabled>
-      <option value="">All Brands</option>
+    
+    <select id="brand-filter" disabled>
+      <option value="all">All Brands</option>
     </select>
-
-    <select id="selPlatform" aria-label="Platform">
-      <option value="">All Platforms</option>
-      <!-- las opciones se llenan en runtime (filters.platforms) -->
+    
+    <select id="platform-filter">
+      <option value="all">All Platforms</option>
     </select>
-
-    <select id="selStatus" aria-label="Status">
+    
+    <select id="status-filter">
       <option value="published">Published Only</option>
       <option value="all">All Status</option>
     </select>
+    
+    <input type="text" id="search-input" placeholder="Buscar posts...">
   </div>
 
-  <!-- fila 2 -->
-  <div class="filters-row">
-    <input id="txtSearch" type="search" placeholder="Buscar posts..." />
-  </div>
+  <div id="error-message"></div>
+  <div id="grid-container"></div>
 
-  <div id="chips" class="chips"></div>
-</section>
+  <script>
+    let currentFilters = {
+      client: 'all',
+      project: 'all',
+      brand: 'all',
+      platform: 'all',
+      status: 'published',
+      search: ''
+    };
 
-<main>
-  <div id="grid" class="grid"></div>
-  <div class="loadmore-wrap">
-    <button id="btnMore" class="btn" style="display:none;">Load more</button>
-  </div>
-</main>
+    let schemaData = null;
 
-<!-- Modal muy simple (tu UI real puede ser más pro) -->
-<div id="modal" class="modal" hidden>
-  <div class="modal-content">
-    <button id="modalClose" class="btn btn-ghost" aria-label="Close">×</button>
-    <div class="modal-body">
-      <img id="modalImg" alt="" />
-      <video id="modalVid" controls playsinline muted hidden></video>
-      <div id="modalCopy" class="modal-copy" style="display:none;"></div>
-    </div>
-  </div>
-</div>
-
-<script>
-/* ========== STATE ========== */
-const STATE = {
-  filters: {
-    client: '',
-    project: '',
-    brand: '',
-    platform: '',  // single selection; si quieres multi, convierte a lista
-    status: 'published', // published | all
-    q: ''
-  },
-  cursor: null,
-  limit: 12,
-  loading: false
-};
-
-/* ========== DOM ========== */
-const selClient   = document.getElementById('selClient');
-const selProject  = document.getElementById('selProject');
-const selBrand    = document.getElementById('selBrand');
-const selPlatform = document.getElementById('selPlatform');
-const selStatus   = document.getElementById('selStatus');
-const txtSearch   = document.getElementById('txtSearch');
-const chips       = document.getElementById('chips');
-const grid        = document.getElementById('grid');
-const countEl     = document.getElementById('count');
-const btnMore     = document.getElementById('btnMore');
-const btnRefresh  = document.getElementById('btnRefresh');
-
-const modal      = document.getElementById('modal');
-const modalClose = document.getElementById('modalClose');
-const modalImg   = document.getElementById('modalImg');
-const modalVid   = document.getElementById('modalVid');
-const modalCopy  = document.getElementById('modalCopy');
-
-/* ========== UTILS ========== */
-function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-function debounce(fn, ms=250){let t;return (...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
-function setDisabled(el, flag){ if(!el) return; el.disabled = !!flag; }
-
-/* ========== META ========== */
-async function fetchMeta() {
-  const url = `/api/grid?meta=1&limit=${STATE.limit}&status=${STATE.filters.status}`;
-  const r = await fetch(url);
-  if (!r.ok) return;
-  const data = await r.json();
-  const f = data.filters || {};
-
-  // Clients
-  fillSelect(selClient, ['All Clients',''].concat(f.clients||[]));
-  // Projects
-  fillSelect(selProject, ['All Projects',''].concat(f.projects||[]));
-  // Brands (queda vacío/disabled hasta que haya client)
-  fillSelect(selBrand, ['All Brands','']);
-  selBrand.disabled = !STATE.filters.client;
-
-  // Platforms
-  fillSelect(selPlatform, ['All Platforms',''].concat(f.platforms||[]));
-
-  // Reset chips
-  renderChips();
-}
-function fillSelect(el, arr) {
-  if (!el) return;
-  el.innerHTML = '';
-  // arr: [labelAll, valueAll, ...items]
-  if (arr.length >= 2) {
-    const optAll = document.createElement('option');
-    optAll.value = '';
-    optAll.textContent = arr[0];
-    el.appendChild(optAll);
-  }
-  // resto (strings)
-  arr.slice(2).forEach(v => {
-    const o = document.createElement('option');
-    o.value = v;
-    o.textContent = v;
-    el.appendChild(o);
-  });
-}
-
-/* ========== DATA FETCH (cursor-based) ========== */
-function buildQuery(withCursor=true) {
-  const p = new URLSearchParams();
-  p.set('limit', STATE.limit);
-  if (STATE.filters.client)  p.set('client',  STATE.filters.client);
-  if (STATE.filters.project) p.set('project', STATE.filters.project);
-  if (STATE.filters.brand)   p.set('brand',   STATE.filters.brand);
-  if (STATE.filters.platform)p.set('platform',STATE.filters.platform);
-  if (STATE.filters.q)       p.set('q',       STATE.filters.q);
-  p.set('status', STATE.filters.status);
-  if (withCursor && STATE.cursor) p.set('cursor', STATE.cursor);
-  return '/api/grid?' + p.toString();
-}
-
-async function loadPosts({ reset=false } = {}) {
-  if (STATE.loading) return;
-  STATE.loading = true;
-
-  if (reset) {
-    STATE.cursor = null;
-    grid.innerHTML = '';
-    btnMore.style.display = 'none';
-    countEl.textContent = '';
-  }
-
-  const url = buildQuery(true);
-  const r = await fetch(url);
-  STATE.loading = false;
-
-  if (!r.ok) {
-    grid.innerHTML = `<div class="error">Error cargando posts</div>`;
-    return;
-  }
-  const data = await r.json();
-  const posts = data.posts || [];
-
-  posts.forEach(p => grid.appendChild(card(p)));
-  countEl.textContent = grid.children.length ? `(${grid.children.length})` : '';
-
-  if (data.hasMore && data.nextCursor) {
-    STATE.cursor = data.nextCursor;
-    btnMore.style.display = 'inline-flex';
-  } else {
-    STATE.cursor = null;
-    btnMore.style.display = 'none';
-  }
-}
-
-/* ========== BRAND dependiente de CLIENT ========== */
-async function refreshBrandsForClient() {
-  // como meta devuelve brands globales del batch, aquí las derivamos del grid actual
-  // o simplemente dejamos Brand libre si prefieres.
-  // Para un UX claro: al cambiar Client, limpiamos Brand.
-  STATE.filters.brand = '';
-  selBrand.value = '';
-  selBrand.disabled = !STATE.filters.client;
-}
-
-/* ========== RENDER CARD / MODAL ========== */
-function card(post) {
-  const el = document.createElement('button');
-  el.className = 'card';
-  el.type = 'button';
-  el.setAttribute('aria-label', post.title || 'post');
-
-  const main = (post.assets && post.assets[0]) || null;
-
-  // Badges (Owner + video + carrusel + pinned)
-  const badges = document.createElement('div'); badges.className = 'badges';
-  if (post.owner) {
-    const badgeOwner = document.createElement('span');
-    badgeOwner.className = 'badge owner';
-    badgeOwner.textContent = (post.owner||'??').slice(0,2).toUpperCase();
-    badges.appendChild(badgeOwner);
-  }
-  if (main && main.type === 'video') {
-    const b = document.createElement('span'); b.className = 'badge video'; b.textContent = '▶';
-    badges.appendChild(b);
-  }
-  if ((post.assets||[]).length > 1) {
-    const b = document.createElement('span'); b.className = 'badge ig'; b.textContent = 'IG';
-    badges.appendChild(b);
-  }
-  if (post.pinned) {
-    const b = document.createElement('span'); b.className = 'badge pin'; b.textContent = '📌';
-    badges.appendChild(b);
-  }
-
-  const mediaWrap = document.createElement('div'); mediaWrap.className = 'media-wrap';
-  if (main) {
-    if (main.type === 'video') {
-      const v = document.createElement('video');
-      v.src = main.url; v.muted = true; v.playsInline = true;
-      mediaWrap.appendChild(v);
-      el.addEventListener('mouseenter', ()=>v.play().catch(()=>{}));
-      el.addEventListener('mouseleave', ()=>v.pause());
-    } else {
-      const img = document.createElement('img');
-      img.src = main.url; img.alt = post.title || '';
-      mediaWrap.appendChild(img);
+    // Cargar schema primero
+    async function loadSchema() {
+      try {
+        const response = await fetch('/api/schema');
+        if (!response.ok) throw new Error('Error cargando schema');
+        
+        schemaData = await response.json();
+        
+        // Poblar filtros
+        populateSelect('client-filter', schemaData.clients);
+        populateSelect('platform-filter', schemaData.platforms);
+        
+      } catch (error) {
+        console.error('Error en schema:', error);
+      }
     }
-  } else {
-    const ph = document.createElement('div'); ph.className = 'placeholder'; ph.textContent = 'No image';
-    mediaWrap.appendChild(ph);
-  }
 
-  const overlay = document.createElement('div');
-  overlay.className = 'overlay';
-  overlay.innerHTML = `
-    <div class="ovl-title">${escapeHtml(post.title || '')}</div>
-    <div class="ovl-meta">
-      ${escapeHtml(post.date || '')}
-      ${post.client ? ' · ' + escapeHtml(post.client) : ''}
-      ${post.project ? ' · ' + escapeHtml(post.project) : ''}
-    </div>
-  `;
+    function populateSelect(selectId, items) {
+      const select = document.getElementById(selectId);
+      const firstOption = select.options[0];
+      select.innerHTML = '';
+      select.appendChild(firstOption);
+      
+      items.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.id || item.name;
+        option.textContent = item.name;
+        select.appendChild(option);
+      });
+    }
 
-  el.appendChild(badges);
-  el.appendChild(mediaWrap);
-  el.appendChild(overlay);
-  el.onclick = () => openModal(post);
-  return el;
-}
+    // Cargar posts
+    async function loadPosts() {
+      const errorDiv = document.getElementById('error-message');
+      const gridContainer = document.getElementById('grid-container');
+      
+      errorDiv.textContent = '';
+      gridContainer.innerHTML = '<p>Cargando...</p>';
 
-function openModal(post) {
-  const a = (post.assets && post.assets[0]) || null;
-  if (a && a.type === 'video') {
-    modalVid.src = a.url; modalVid.hidden = false; modalImg.hidden = true;
-    modalVid.play().catch(()=>{});
-  } else {
-    modalImg.src = a ? a.url : ''; modalImg.hidden = false; modalVid.hidden = true;
-    modalVid.pause();
-  }
-  const copy = post.copy || '';
-  if (copy) { modalCopy.textContent = copy; modalCopy.style.display = 'block'; }
-  else { modalCopy.style.display = 'none'; }
+      try {
+        const params = new URLSearchParams();
+        
+        Object.keys(currentFilters).forEach(key => {
+          if (currentFilters[key] && currentFilters[key] !== 'all') {
+            params.append(key, currentFilters[key]);
+          }
+        });
 
-  modal.hidden = false;
-}
-function closeModal(){ modal.hidden = true; modalVid.pause(); modalVid.currentTime = 0; }
-modalClose.onclick = closeModal;
-modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+        const response = await fetch(`/api/grid?${params.toString()}`);
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.details || 'Error desconocido');
+        }
+        
+        const data = await response.json();
+        renderPosts(data.results);
+        
+      } catch (error) {
+        console.error('Error completo:', error);
+        errorDiv.textContent = `Error cargando posts: ${error.message}`;
+        gridContainer.innerHTML = '';
+      }
+    }
 
-/* ========== CHIPS ========== */
-function renderChips() {
-  const parts = [];
-  if (STATE.filters.client)  parts.push(chip('Client',  STATE.filters.client,  ()=>{ STATE.filters.client=''; selClient.value=''; selBrand.value=''; selBrand.disabled=true; reload(); }));
-  if (STATE.filters.project) parts.push(chip('Project', STATE.filters.project, ()=>{ STATE.filters.project=''; selProject.value=''; reload(); }));
-  if (STATE.filters.brand)   parts.push(chip('Brand',   STATE.filters.brand,   ()=>{ STATE.filters.brand=''; selBrand.value=''; reload(); }));
-  if (STATE.filters.platform)parts.push(chip('Platform',STATE.filters.platform,()=>{ STATE.filters.platform=''; selPlatform.value=''; reload(); }));
-  if (STATE.filters.status && STATE.filters.status!=='published') parts.push(chip('Status','All',()=>{ STATE.filters.status='published'; selStatus.value='published'; reload(); }));
-  if (STATE.filters.q)       parts.push(chip('q',       STATE.filters.q,       ()=>{ STATE.filters.q=''; txtSearch.value=''; reload(); }));
+    function renderPosts(posts) {
+      const gridContainer = document.getElementById('grid-container');
+      
+      if (!posts || posts.length === 0) {
+        gridContainer.innerHTML = '<p class="empty-state">No hay posts para mostrar</p>';
+        return;
+      }
 
-  chips.innerHTML = parts.join('') + (parts.length ? `<button class="btn btn-ghost" id="clearAll">Clear all</button>` : '');
-  const clearBtn = document.getElementById('clearAll');
-  if (clearBtn) clearBtn.onclick = () => {
-    STATE.filters = { client:'', project:'', brand:'', platform:'', status:'published', q:'' };
-    selClient.value=''; selProject.value=''; selBrand.value=''; selBrand.disabled=true; selPlatform.value=''; selStatus.value='published'; txtSearch.value='';
-    reload();
-  };
-}
-function chip(label, value, onRemove){
-  const id='chip_'+Math.random().toString(36).slice(2);
-  queueMicrotask(()=>{ const b=document.getElementById(id); if(b) b.onclick=onRemove; });
-  return `<span class="chip">${escapeHtml(label)}: ${escapeHtml(value)} <button id="${id}" class="chip-x" aria-label="Remove">×</button></span>`;
-}
+      gridContainer.innerHTML = posts.map(post => {
+        const name = post.properties.Name?.title?.[0]?.plain_text || 'Sin título';
+        const date = post.properties.Created?.date?.start || '';
+        const cover = post.cover?.file?.url || post.cover?.external?.url || '';
+        
+        return `
+          <div class="post-card">
+            ${cover ? `<img src="${cover}" alt="${name}">` : '<div class="no-image">Sin imagen</div>'}
+            <div class="post-info">
+              <h3>${name}</h3>
+              <p>${date}</p>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
 
-/* ========== EVENTS ========== */
-const reload = ()=>{ renderChips(); loadPosts({reset:true}); };
+    // Event listeners
+    document.getElementById('refresh-btn').addEventListener('click', loadPosts);
+    
+    document.getElementById('client-filter').addEventListener('change', (e) => {
+      currentFilters.client = e.target.value;
+      
+      // Filtrar proyectos y brands por cliente
+      if (e.target.value !== 'all' && schemaData) {
+        const filteredProjects = schemaData.projects.filter(p => p.client === e.target.value);
+        const filteredBrands = schemaData.brands.filter(b => b.client === e.target.value);
+        
+        populateSelect('project-filter', filteredProjects);
+        populateSelect('brand-filter', filteredBrands);
+        document.getElementById('brand-filter').disabled = false;
+      } else {
+        populateSelect('project-filter', schemaData?.projects || []);
+        document.getElementById('brand-filter').disabled = true;
+        document.getElementById('brand-filter').value = 'all';
+      }
+      
+      loadPosts();
+    });
 
-btnRefresh.onclick = ()=>loadPosts({reset:true});
-btnMore.onclick = ()=>loadPosts({reset:false});
+    document.getElementById('project-filter').addEventListener('change', (e) => {
+      currentFilters.project = e.target.value;
+      loadPosts();
+    });
 
-selClient.addEventListener('change', ()=>{
-  STATE.filters.client = selClient.value;
-  refreshBrandsForClient();
-  reload();
-});
-selProject.addEventListener('change', ()=>{
-  STATE.filters.project = selProject.value;
-  reload();
-});
-selBrand.addEventListener('change', ()=>{
-  STATE.filters.brand = selBrand.value;
-  reload();
-});
-selPlatform.addEventListener('change', ()=>{
-  STATE.filters.platform = selPlatform.value;
-  reload();
-});
-selStatus.addEventListener('change', ()=>{
-  STATE.filters.status = selStatus.value; // published | all
-  fetchMeta(); // meta puede variar
-  reload();
-});
-txtSearch.addEventListener('input', debounce(()=>{
-  STATE.filters.q = txtSearch.value.trim();
-  reload();
-}, 250));
+    document.getElementById('brand-filter').addEventListener('change', (e) => {
+      currentFilters.brand = e.target.value;
+      loadPosts();
+    });
 
-/* ========== INIT ========== */
-(async function init(){
-  await fetchMeta();
-  await loadPosts({reset:true});
-})();
-</script>
+    document.getElementById('platform-filter').addEventListener('change', (e) => {
+      currentFilters.platform = e.target.value;
+      loadPosts();
+    });
+
+    document.getElementById('status-filter').addEventListener('change', (e) => {
+      currentFilters.status = e.target.value;
+      loadPosts();
+    });
+
+    let searchTimeout;
+    document.getElementById('search-input').addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        currentFilters.search = e.target.value;
+        loadPosts();
+      }, 500);
+    });
+
+    // Inicializar
+    loadSchema().then(() => loadPosts());
+  </script>
 </body>
 </html>
