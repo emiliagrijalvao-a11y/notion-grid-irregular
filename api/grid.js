@@ -60,25 +60,21 @@ export default async function handler(req, res) {
       const postClientArray = p.PostClient?.rollup?.array || [];
       const clientNames = postClientArray.map(x => {
         if (typeof x === 'string') return x;
-        if (x && x.name) return x.name;
-        return null;
+        return (x?.name || '').trim();
       }).filter(x => x);
 
       // LEER BRANDS desde PostBrands (ROLLUP)
       const postBrandsArray = p.PostBrands?.rollup?.array || [];
       const brandNames = postBrandsArray.map(x => {
         if (typeof x === 'string') return x;
-        if (x && x.name) return x.name;
-        return null;
+        return (x?.name || '').trim();
       }).filter(x => x);
 
-      // LEER PROJECTS desde PostProject (RELATION)
+      // LEER PROJECTS desde PostProject (RELATION) - FIX: usa title, no name
       const projectArray = p.PostProject?.relation || [];
       const projectNames = projectArray.map(x => {
         if (typeof x === 'string') return x;
-        if (x && x.title) return x.title;
-        if (x && x.name) return x.name;
-        return null;
+        return (x?.title || x?.name || '').trim();
       }).filter(x => x);
 
       items.push({
