@@ -116,26 +116,30 @@
   </div>
 
   <script>
-    const posts = [
-      // Aquí carga tus posts reales desde /api/grid al despliegue
-    ];
-
+    // --- Selección de nodos base ---
     const gridContainer = document.getElementById('gridContainer');
     const modal = document.getElementById('modal');
     const modalTitle = document.getElementById('modalTitle');
     const modalImage = document.getElementById('modalImage');
     const modalVideo = document.getElementById('modalVideo');
-    
+
+    // Estado mínimo para modal (mostramos solo el primer asset, como tu UI base)
+    let currentPost = null;
+
+    // --- Render de una card (sin cambiar estilos/layout) ---
     function createCard(post) {
       const card = document.createElement('div');
       card.className = 'card';
-      if(!post || !post.assets || post.assets.length === 0) {
+
+      if (!post || !post.assets || post.assets.length === 0) {
         card.classList.add('empty');
         card.innerHTML = '<div class="label-irregular">Irregular</div>No hay contenido aún';
         return card;
       }
+
       const mainAsset = post.assets[0];
-      if(mainAsset.type === 'video') {
+
+      if (mainAsset.type === 'video') {
         const video = document.createElement('video');
         video.src = mainAsset.url;
         video.setAttribute('muted', '');
@@ -148,50 +152,39 @@
         img.alt = post.title || '';
         card.appendChild(img);
       }
+
       const overlay = document.createElement('div');
       overlay.className = 'overlay';
-      overlay.textContent = `${post.title} - ${post.date || ''}`;
+      overlay.textContent = `${post.title || ''}${post.date ? ' - ' + post.date : ''}`;
       card.appendChild(overlay);
-      if(post.assets.length > 0 && post.assets[0].type === 'video') {
+
+      if (mainAsset.type === 'video') {
         const badge = document.createElement('div');
         badge.className = 'badge-video';
         badge.textContent = '▶';
         card.appendChild(badge);
       }
-      if(post.assets.length > 1) {
+      if (post.assets.length > 1) {
         const carouselBadge = document.createElement('div');
         carouselBadge.className = 'badge-carousel';
         carouselBadge.textContent = 'IG';
         card.appendChild(carouselBadge);
       }
-      if(post.assets.length > 0 && post.assets[0].type === 'video') {
+
+      if (mainAsset.type === 'video') {
         const video = card.querySelector('video');
         card.addEventListener('mouseenter', () => video.play());
         card.addEventListener('mouseleave', () => video.pause());
       }
-      card.addEventListener('click', () => {
-        if (post.assets[0].type === 'video') {
-          modalVideo.src = post.assets[0].url;
-          modalVideo.style.display = 'block';
-          modalImage.style.display = 'none';
-          modalVideo.play();
-        } else {
-          modalImage.src = post.assets[0].url;
-          modalImage.style.display = 'block';
-          modalVideo.style.display = 'none';
-          modalVideo.pause();
-        }
-        modalTitle.textContent = post.title;
-        modal.style.display = 'flex';
-        modal.focus();
-      });
+
+      card.addEventListener('click', () => openModal(post));
       return card;
     }
 
     function renderGrid(posts) {
       gridContainer.innerHTML = '';
-      if(!posts || posts.length === 0) {
-        for(let i = 0; i < 6; i++) {
+      if (!posts || posts.length === 0) {
+        for (let i = 0; i < 6; i++) {
           gridContainer.appendChild(createCard(null));
         }
         return;
@@ -201,23 +194,67 @@
       });
     }
 
-    renderGrid(posts);
+    // --- Modal básico (primer asset, igual que tu UI actual) ---
+    function openModal(post) {
+      currentPost = post || null;
+      if (!currentPost || !currentPost.assets || currentPost.assets.length === 0) return;
+
+      const main = currentPost.assets[0];
+      if (main.type === 'video') {
+        modalVideo.src = main.url;
+        modalVideo.style.display = 'block';
+        modalImage.style.display = 'none';
+        modalVideo.play().catch(()=>{});
+      } else {
+        modalImage.src = main.url;
+        modalImage.style.display = 'block';
+        modalVideo.style.display = 'none';
+        modalVideo.pause();
+      }
+      modalTitle.textContent = currentPost.title || '';
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
+      modal.focus();
+    }
+
+    function closeModal() {
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
+      modalVideo.pause();
+      modalVideo.currentTime = 0;
+    }
 
     modal.addEventListener('click', e => {
-      if (e.target === modal) {
-        modal.style.display = 'none';
-        modalVideo.pause();
-        modalVideo.currentTime = 0;
-      }
+      if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && modal.style.display === 'flex') closeModal();
     });
 
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && modal.style.display === 'flex') {
-        modal.style.display = 'none';
-        modalVideo.pause();
-        modalVideo.currentTime = 0;
+    // --- Carga de datos reales desde /api/grid (sin tocar UI) ---
+    async function loadAndRender() {
+      try {
+        const r = await fetch('/api/grid?page=1&pageSize=24', { cache: 'no-store' });
+        const j = await r.json();
+        // El backend devuelve { page, pageSize, total, posts: [...] }
+        renderGrid(j.posts || []);
+      } catch (e) {
+        console.error(e);
+        renderGrid([]); // placeholders si falla
       }
-    });
+    }
+
+    // Init
+    loadAndRender();
+
+    // --- Opcional: desactivar cualquier UI de “bio” si la hubiera ---
+    (function killBio(){
+      try {
+        document.querySelectorAll('[data-ui="bio-menu"], [data-ui="bio-toggle"], .js-bio, [data-bio]')
+          .forEach(el => el.remove());
+        window.__DISABLE_BIO__ = true;
+      } catch(e) {}
+    })();
   </script>
 </body>
 </html>
