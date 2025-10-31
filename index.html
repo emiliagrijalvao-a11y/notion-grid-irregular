@@ -309,4 +309,279 @@ bootstrap().catch(err => {
 });
 </script>
 </body>
+  <script>
+// ====== STATE ======
+const WIDGET_STATE = {
+  project: '',
+  client: '',
+  brand: '',
+  q: '',
+  draft: 0,
+  page: 1,
+  pageSize: 24,
+  end: false,
+  meta: {
+    projects: [],
+    clients: [],
+    brandsByClient: {}
+  }
+};
+
+// ====== ELEMENTOS (ajusta los IDs a los tuyos) ======
+const els = {
+  refresh: document.getElementById('refreshBtn') || document.getElementById('btn-refresh'),
+  project: document.getElementById('filter-project'),   // <select> o <button>
+  client:  document.getElementById('filter-client'),
+  brand:   document.getElementById('filter-brand'),
+  search:  document.getElementById('search-input'),
+  draft:   document.getElementById('draft-toggle'),
+  chips:   document.getElementById('active-filters'),
+  grid:    document.getElementById('postsGrid') || document.getElementById('grid'),
+  loadMore:document.getElementById('load-more'),
+};
+
+// helper para armar query
+function buildQuery() {
+  const p = new URLSearchParams();
+  if (WIDGET_STATE.project) p.set('project', WIDGET_STATE.project);
+  if (WIDGET_STATE.client)  p.set('client',  WIDGET_STATE.client);
+  if (WIDGET_STATE.brand)   p.set('brand',   WIDGET_STATE.brand);
+  if (WIDGET_STATE.q)       p.set('q',       WIDGET_STATE.q);
+  if (WIDGET_STATE.draft)   p.set('draft', '1');
+  p.set('page', WIDGET_STATE.page);
+  p.set('pageSize', WIDGET_STATE.pageSize);
+  return p.toString();
+}
+
+// ============ FETCH META (para llenar selects) ============
+async function fetchMeta() {
+  const res = await fetch('/api/grid?meta=1');
+  if (!res.ok) {
+    console.error('No pude leer /api/grid?meta=1');
+    return;
+  }
+  const json = await res.json();
+  const f = json.filters || {};
+  WIDGET_STATE.meta.projects = f.projects || [];
+  WIDGET_STATE.meta.clients  = f.clients  || [];
+  WIDGET_STATE.meta.brandsByClient = f.brandsByClient || {};
+
+  // si tus selects existen, los llenas aquí:
+  if (els.project && els.project.tagName === 'SELECT') {
+    fillSelect(els.project, WIDGET_STATE.meta.projects, 'All projects');
+  }
+  if (els.client && els.client.tagName === 'SELECT') {
+    fillSelect(els.client, WIDGET_STATE.meta.clients, 'All clients');
+  }
+  syncBrandSelect();
+}
+
+function fillSelect(el, items, label) {
+  el.innerHTML = '';
+  const opt = document.createElement('option');
+  opt.value = '';
+  opt.textContent = label;
+  el.appendChild(opt);
+  items.forEach(i => {
+    const o = document.createElement('option');
+    o.value = i;
+    o.textContent = i;
+    el.appendChild(o);
+  });
+}
+
+function syncBrandSelect() {
+  if (!els.brand) return;
+  const list = WIDGET_STATE.client
+    ? (WIDGET_STATE.meta.brandsByClient[WIDGET_STATE.client] || [])
+    : [];
+  els.brand.disabled = !WIDGET_STATE.client;
+  fillSelect(els.brand, list, 'All brands');
+  // autoselect si hay 1 sola
+  if (WIDGET_STATE.client && list.length === 1) {
+    WIDGET_STATE.brand = list[0];
+    els.brand.value = list[0];
+  } else if (!WIDGET_STATE.client) {
+    WIDGET_STATE.brand = '';
+  }
+  renderChips();
+}
+
+// ============ FETCH POSTS ============
+async function fetchPosts(reset=false) {
+  if (reset) {
+    WIDGET_STATE.page = 1;
+    WIDGET_STATE.end = false;
+    if (els.grid) els.grid.innerHTML = '';
+    if (els.loadMore) els.loadMore.style.display = 'none';
+  }
+  if (WIDGET_STATE.end) return;
+
+  const q = buildQuery();
+  const res = await fetch('/api/grid?' + q);
+  if (!res.ok) {
+    console.error('Error leyendo /api/grid');
+    if (els.grid && !els.grid.innerHTML) {
+      els.grid.textContent = 'Error: Error leyendo /api/grid';
+    }
+    return;
+  }
+  const json = await res.json();
+  const posts = json.posts || [];
+
+  renderPosts(posts);
+
+  // paginación
+  if (json.hasMore) {
+    if (els.loadMore) els.loadMore.style.display = 'block';
+  } else {
+    WIDGET_STATE.end = true;
+    if (els.loadMore) els.loadMore.style.display = 'none';
+  }
+}
+
+// ============ RENDER POSTS (usa TU card) ============
+function renderPosts(posts) {
+  if (!els.grid) return;
+  posts.forEach(post => {
+    const card = createPostCard(post);
+    els.grid.appendChild(card);
+  });
+}
+
+function createPostCard(post) {
+  // AQUÍ USAS TU HTML DE CARD
+  // yo te dejo una versión mínima, pero tú cambias el contenido
+  const card = document.createElement('div');
+  card.className = 'post-card'; // usa tu clase existente
+
+  const media = post.assets && post.assets[0];
+  if (media) {
+    if (media.type === 'video') {
+      const v = document.createElement('video');
+      v.src = media.url;
+      v.muted = true;
+      v.playsInline = true;
+      card.appendChild(v);
+    } else {
+      const img = document.createElement('img');
+      img.src = media.url;
+      img.alt = post.title || '';
+      card.appendChild(img);
+    }
+  } else {
+    card.textContent = post.title || 'Sin media';
+  }
+
+  // overlay título
+  const overlay = document.createElement('div');
+  overlay.className = 'post-overlay'; // tu clase
+  overlay.textContent = post.title || '';
+  card.appendChild(overlay);
+
+  // badge draft
+  if (post.draft) {
+    const b = document.createElement('span');
+    b.className = 'badge-draft'; // crea la clase en tu css o reutiliza una
+    b.textContent = 'Draft';
+    card.appendChild(b);
+  }
+
+  return card;
+}
+
+// ============ CHIPS ============
+function renderChips() {
+  if (!els.chips) return;
+  els.chips.innerHTML = '';
+  const chips = [];
+
+  if (WIDGET_STATE.project) chips.push(['Project', WIDGET_STATE.project, () => {
+    WIDGET_STATE.project = '';
+    if (els.project) els.project.value = '';
+    fetchPosts(true);
+    renderChips();
+  }]);
+
+  if (WIDGET_STATE.client) chips.push(['Client', WIDGET_STATE.client, () => {
+    WIDGET_STATE.client = '';
+    if (els.client) els.client.value = '';
+    syncBrandSelect();
+    fetchPosts(true);
+  }]);
+
+  if (WIDGET_STATE.brand) chips.push(['Brand', WIDGET_STATE.brand, () => {
+    WIDGET_STATE.brand = '';
+    if (els.brand) els.brand.value = '';
+    fetchPosts(true);
+  }]);
+
+  if (WIDGET_STATE.q) chips.push(['q', WIDGET_STATE.q, () => {
+    WIDGET_STATE.q = '';
+    if (els.search) els.search.value = '';
+    fetchPosts(true);
+  }]);
+
+  chips.forEach(([label, value, onRemove]) => {
+    const el = document.createElement('span');
+    el.className = 'chip'; // usa tu clase
+    el.innerHTML = `<strong>${label}:</strong> ${value} <button type="button">×</button>`;
+    el.querySelector('button').addEventListener('click', onRemove);
+    els.chips.appendChild(el);
+  });
+}
+
+// ============ EVENTOS ============
+if (els.project) els.project.addEventListener('change', () => {
+  WIDGET_STATE.project = els.project.value;
+  renderChips();
+  fetchPosts(true);
+});
+
+if (els.client) els.client.addEventListener('change', () => {
+  WIDGET_STATE.client = els.client.value;
+  syncBrandSelect();
+  fetchPosts(true);
+});
+
+if (els.brand) els.brand.addEventListener('change', () => {
+  WIDGET_STATE.brand = els.brand.value;
+  renderChips();
+  fetchPosts(true);
+});
+
+if (els.search) {
+  let t;
+  els.search.addEventListener('input', () => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      WIDGET_STATE.q = els.search.value.trim();
+      renderChips();
+      fetchPosts(true);
+    }, 250);
+  });
+}
+
+if (els.draft) els.draft.addEventListener('change', () => {
+  WIDGET_STATE.draft = els.draft.checked ? 1 : 0;
+  fetchPosts(true);
+});
+
+if (els.loadMore) els.loadMore.addEventListener('click', () => {
+  WIDGET_STATE.page += 1;
+  fetchPosts(false);
+});
+
+if (els.refresh) els.refresh.addEventListener('click', () => {
+  fetchMeta();
+  fetchPosts(true);
+});
+
+// ============ INIT ============
+(async function init() {
+  await fetchMeta();
+  await fetchPosts(true);
+})();
+</script>
+
 </html>
