@@ -1,4 +1,4 @@
-// /api/grid.js - CON FILTROS DE STATUS Y DRAFT
+// /api/grid.js - VERSIÓN FINAL CORRECTA
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
 
@@ -33,7 +33,8 @@ export default async function handler(req, res) {
 
     const items = [];
     const statuses = new Map();
-    const drafts = new Map();
+    const clients = new Map();
+    const projects = new Map();
 
     for (const r of (query.results || [])) {
       const p = r.properties || {};
@@ -52,9 +53,24 @@ export default async function handler(req, res) {
 
       let thumb = assets[0]?.url || (p.Link?.url ? p.Link.url : null);
 
-      const draftFormula = p.Draft?.formula?.boolean || false;
       const status = p.Status?.status?.name || "Sin estado";
-      const isDraft = draftFormula;
+      const isDraft = checkbox(p.Draft?.formula);
+
+      // LEER CLIENTES (desde campo "Client")
+      const clientIds = [];
+      if (p.Client?.people) {
+        p.Client.people.forEach(person => {
+          if (person.id) clientIds.push(person.id);
+        });
+      }
+
+      // LEER PROYECTOS (desde campo "Project")
+      const projectIds = [];
+      if (p.Project?.relation) {
+        p.Project.relation.forEach(proj => {
+          if (proj.id) projectIds.push(proj.id);
+        });
+      }
 
       items.push({
         id: r.id,
@@ -65,20 +81,32 @@ export default async function handler(req, res) {
         thumb,
         assets,
         isVideo: false,
+        clientIds,
+        projectIds,
       });
 
-      // Recolectar filtros
+      // Recolectar filtros Status
       const statusKey = status || "Sin estado";
       if (!statuses.has(statusKey)) {
         statuses.set(statusKey, { name: statusKey, count: 0 });
       }
       statuses.get(statusKey).count++;
 
-      const draftKey = isDraft ? "Draft" : "Published";
-      if (!drafts.has(draftKey)) {
-        drafts.set(draftKey, { name: draftKey, count: 0 });
-      }
-      drafts.get(draftKey).count++;
+      // Recolectar Clients
+      clientIds.forEach(cid => {
+        if (!clients.has(cid)) {
+          clients.set(cid, { id: cid, name: cid, count: 0 });
+        }
+        clients.get(cid).count++;
+      });
+
+      // Recolectar Projects
+      projectIds.forEach(pid => {
+        if (!projects.has(pid)) {
+          projects.set(pid, { id: pid, name: pid, count: 0 });
+        }
+        projects.get(pid).count++;
+      });
     }
 
     res.status(200).json({
@@ -86,7 +114,8 @@ export default async function handler(req, res) {
       items,
       filters: {
         statuses: Array.from(statuses.values()),
-        drafts: Array.from(drafts.values()),
+        clients: Array.from(clients.values()),
+        projects: Array.from(projects.values()),
       }
     });
 
