@@ -3,258 +3,310 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Notion Grid Widget</title>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      --bg-color: #fff; --text-color: #111;
-      margin: 0; padding: 15px; background: var(--bg-color); color: var(--text-color);
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 8px;
-    }
-    .card {
-      position: relative;
-      background: #f7f7f7;
-      border-radius: 10px;
-      overflow: hidden;
-      cursor: pointer;
-      min-height: 180px;
-      display: flex; align-items: center; justify-content: center;
-      color: #999; font-size: 14px;
-      user-select: none;
-    }
-    .card.empty {
-      background: #cce5cc;
-      font-style: italic;
-      font-weight: 500;
-    }
-    .card.empty .label-irregular {
-      position: absolute; top: 5px; left: 5px;
-      color: #2d7a2d;
-      font-size: 12px; font-weight: 600;
-    }
-    .card img, .card video {
-      width: 100%; height: auto; display: block; border-radius: 10px;
-    }
-    .overlay {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      background: rgba(0,0,0,0.6); color: white;
-      padding: 6px 8px; font-size: 13px;
-      display: none; justify-content: space-between;
-      border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;
-    }
-    .card:hover .overlay,
-    .card:focus-within .overlay {
-      display: flex;
-    }
-    .badge-video {
-      position: absolute; top: 6px; right: 6px;
-      background: #fff; color: #333; border-radius: 50%;
-      font-size: 12px; padding: 3px 6px; font-weight: bold; opacity: 0.8;
-    }
-    .badge-carousel {
-      position: absolute; top: 6px; right: 30px;
-      background: white; color: #000; border-radius: 4px;
-      font-size: 14px; font-weight: bold; padding: 2px 6px; opacity: 0.7;
-    }
-    .modal {
-      display: none; position: fixed; z-index: 1000;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.85);
-      align-items: center; justify-content: center;
-    }
-    .modal-content {
-      position: relative; max-width: 90vw; max-height: 90vh;
-      background: #111; border-radius: 10px; overflow: hidden;
-      display: flex; flex-direction: column; user-select: none;
-    }
-    .modal-header {
-      color: white; padding: 10px; text-align: center; font-size: 18px;
-    }
-    .modal-body {
-      flex-grow: 1; overflow: hidden; position: relative;
-    }
-    .modal-media {
-      width: 100%; height: 100%; object-fit: contain; background: black;
-    }
-    .modal-nav {
-      position: absolute; top: 50%; transform: translateY(-50%);
-      color: white; font-size: 30px;
-      background: rgba(0,0,0,0.4); border-radius: 50%; width: 40px;
-      height: 40px; line-height: 40px; text-align: center;
-      cursor: pointer; user-select: none;
-    }
-    .modal-prev { left: 10px; }
-    .modal-next { right: 10px; }
-    @media (max-width: 600px) {
-      .grid {
-        grid-template-columns: 1fr;
-      }
-      .card {
-        min-height: 250px;
-      }
-    }
-  </style>
+  <title>Posts</title>
+  <!-- Usa tus estilos base del widget (Flujo Creativo). No añadimos CSS nuevo. -->
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="grid" id="gridContainer"></div>
 
-  <div id="modal" class="modal" tabindex="-1" aria-hidden="true">
+  <!-- Header -->
+  <header class="toolbar">
+    <div class="toolbar-left">
+      <h1 class="title">Posts <span id="count" class="count"></span></h1>
+    </div>
+    <div class="toolbar-right">
+      <button id="btnRefresh" class="btn">Refresh</button>
+    </div>
+  </header>
+
+  <!-- Filtros -->
+  <section class="filters">
+    <div class="filters-row">
+      <select id="selProject" aria-label="Project">
+        <option value="">All Projects</option>
+      </select>
+
+      <select id="selClient" aria-label="Client">
+        <option value="">All Clients</option>
+      </select>
+
+      <select id="selBrand" aria-label="Brand" disabled>
+        <option value="">All Brands</option>
+      </select>
+
+      <label class="toggle">
+        <input type="checkbox" id="chkDraft" />
+        <span>Draft only</span>
+      </label>
+    </div>
+
+    <div class="filters-row">
+      <input id="txtSearch" type="search" placeholder="Buscar posts..." />
+    </div>
+
+    <div id="chips" class="chips"></div>
+  </section>
+
+  <!-- Grid -->
+  <main>
+    <div id="grid" class="grid"></div>
+    <div class="loadmore-wrap">
+      <button id="btnMore" class="btn" style="display:none;">Load more</button>
+    </div>
+  </main>
+
+  <!-- Modal simple -->
+  <div id="modal" class="modal" hidden>
     <div class="modal-content">
-      <div class="modal-header" id="modalTitle"></div>
-      <div class="modal-body">
-        <img id="modalImage" class="modal-media" alt="" />
-        <video id="modalVideo" class="modal-media" controls style="display:none;"></video>
+      <button id="modalClose" class="btn btn-ghost" aria-label="Close">×</button>
+      <div class="modal-header">
+        <h2 id="modalTitle"></h2>
       </div>
-      <div class="modal-nav modal-prev" tabindex="0" role="button" aria-label="Previous">&#10094;</div>
-      <div class="modal-nav modal-next" tabindex="0" role="button" aria-label="Next">&#10095;</div>
+      <div class="modal-body">
+        <img id="modalImg" alt="" />
+        <video id="modalVid" controls playsinline muted hidden></video>
+      </div>
     </div>
   </div>
 
-  <script>
-    // --- Selección de nodos base ---
-    const gridContainer = document.getElementById('gridContainer');
-    const modal = document.getElementById('modal');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalImage = document.getElementById('modalImage');
-    const modalVideo = document.getElementById('modalVideo');
+<script>
+/* -------------------- Estado -------------------- */
+let ALL = [];           // posts del backend
+let FILTERED = [];      // posts filtrados
+let PAGE = 1;
+const PAGE_SIZE = 24;
 
-    // Estado mínimo para modal (mostramos solo el primer asset, como tu UI base)
-    let currentPost = null;
+/* -------------------- DOM -------------------- */
+const selProject = document.getElementById('selProject');
+const selClient  = document.getElementById('selClient');
+const selBrand   = document.getElementById('selBrand');
+const chkDraft   = document.getElementById('chkDraft');
+const txtSearch  = document.getElementById('txtSearch');
+const chips      = document.getElementById('chips');
+const grid       = document.getElementById('grid');
+const countEl    = document.getElementById('count');
+const btnMore    = document.getElementById('btnMore');
+const btnRefresh = document.getElementById('btnRefresh');
 
-    // --- Render de una card (sin cambiar estilos/layout) ---
-    function createCard(post) {
-      const card = document.createElement('div');
-      card.className = 'card';
+const modal      = document.getElementById('modal');
+const modalClose = document.getElementById('modalClose');
+const modalTitle = document.getElementById('modalTitle');
+const modalImg   = document.getElementById('modalImg');
+const modalVid   = document.getElementById('modalVid');
 
-      if (!post || !post.assets || post.assets.length === 0) {
-        card.classList.add('empty');
-        card.innerHTML = '<div class="label-irregular">Irregular</div>No hay contenido aún';
-        return card;
-      }
+/* -------------------- Utils -------------------- */
+function debounce(fn, ms = 250) {
+  let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+function uniq(arr) { return [...new Set(arr.filter(Boolean))]; }
 
-      const mainAsset = post.assets[0];
+/* -------------------- Fetch -------------------- */
+async function fetchPosts() {
+  const draft = chkDraft.checked ? '1' : '';
+  const q     = txtSearch.value.trim();
+  const qs    = new URLSearchParams();
+  if (draft) qs.set('draft', '1');
+  if (q)     qs.set('q', q);
 
-      if (mainAsset.type === 'video') {
-        const video = document.createElement('video');
-        video.src = mainAsset.url;
-        video.setAttribute('muted', '');
-        video.setAttribute('playsinline', '');
-        video.className = 'card-video';
-        card.appendChild(video);
-      } else {
-        const img = document.createElement('img');
-        img.src = mainAsset.url;
-        img.alt = post.title || '';
-        card.appendChild(img);
-      }
+  const url = '/api/grid' + (qs.toString() ? `?${qs}` : '');
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Error leyendo /api/grid');
+  const data = await r.json();
+  ALL = (data.posts || []).map(p => ({
+    ...p,
+    client: p.client || "",
+    brands: Array.isArray(p.brands) ? p.brands : []
+  }));
+}
 
-      const overlay = document.createElement('div');
-      overlay.className = 'overlay';
-      overlay.textContent = `${post.title || ''}${post.date ? ' - ' + post.date : ''}`;
-      card.appendChild(overlay);
+function buildOptions() {
+  // Projects
+  const proj = uniq(ALL.map(p => p.project));
+  selProject.innerHTML = '<option value="">All Projects</option>' +
+    proj.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
 
-      if (mainAsset.type === 'video') {
-        const badge = document.createElement('div');
-        badge.className = 'badge-video';
-        badge.textContent = '▶';
-        card.appendChild(badge);
-      }
-      if (post.assets.length > 1) {
-        const carouselBadge = document.createElement('div');
-        carouselBadge.className = 'badge-carousel';
-        carouselBadge.textContent = 'IG';
-        card.appendChild(carouselBadge);
-      }
+  // Clients
+  const clients = uniq(ALL.map(p => p.client));
+  selClient.innerHTML = '<option value="">All Clients</option>' +
+    clients.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
 
-      if (mainAsset.type === 'video') {
-        const video = card.querySelector('video');
-        card.addEventListener('mouseenter', () => video.play());
-        card.addEventListener('mouseleave', () => video.pause());
-      }
+  // Brand depende de client -> se recalcula en onClientChange
+  selBrand.disabled = !selClient.value;
+  selBrand.innerHTML = '<option value="">All Brands</option>';
+}
 
-      card.addEventListener('click', () => openModal(post));
-      return card;
+function onClientChange() {
+  const c = selClient.value.trim();
+  if (!c) {
+    selBrand.disabled = true;
+    selBrand.innerHTML = '<option value="">All Brands</option>';
+    return;
+  }
+  const brands = uniq(ALL.filter(p => p.client === c).flatMap(p => p.brands));
+  selBrand.disabled = false;
+  selBrand.innerHTML = '<option value="">All Brands</option>' +
+    brands.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
+  // Autoselect si hay una sola marca
+  if (brands.length === 1) selBrand.value = brands[0];
+}
+
+function currentFilters() {
+  return {
+    project: selProject.value.trim(),
+    client:  selClient.value.trim(),
+    brand:   selBrand.value.trim(),
+    q:       txtSearch.value.trim().toLowerCase(),
+    draft:   chkDraft.checked
+  };
+}
+
+function applyFilters() {
+  const f = currentFilters();
+  let arr = [...ALL];
+
+  if (f.project) arr = arr.filter(p => p.project === f.project);
+  if (f.client)  arr = arr.filter(p => p.client  === f.client);
+  if (f.brand)   arr = arr.filter(p => (p.brands || []).includes(f.brand));
+  if (f.q)       arr = arr.filter(p => (p.title || "").toLowerCase().includes(f.q));
+
+  FILTERED = arr;
+  PAGE = 1;
+  renderChips();
+  renderGrid();
+}
+
+function renderChips() {
+  const f = currentFilters();
+  const parts = [];
+  if (f.project) parts.push(chip('Project', f.project, () => { selProject.value = ""; applyFilters(); }));
+  if (f.client)  parts.push(chip('Client',  f.client,  () => { selClient.value = ""; selBrand.value = ""; onClientChange(); applyFilters(); }));
+  if (f.brand)   parts.push(chip('Brand',   f.brand,   () => { selBrand.value = ""; applyFilters(); }));
+  if (f.q)       parts.push(chip('q',       f.q,       () => { txtSearch.value = ""; applyFilters(); }));
+  chips.innerHTML = parts.join('') + (parts.length ? `<button class="btn btn-ghost" id="clearAll">Clear all</button>` : '');
+  const clearBtn = document.getElementById('clearAll');
+  if (clearBtn) clearBtn.onclick = () => {
+    selProject.value = ""; selClient.value = ""; selBrand.value = ""; onClientChange(); txtSearch.value = "";
+    applyFilters();
+  };
+}
+
+function chip(label, value, onRemove) {
+  const id = 'chip_' + Math.random().toString(36).slice(2);
+  queueMicrotask(() => {
+    const x = document.getElementById(id);
+    if (x) x.onclick = onRemove;
+  });
+  return `<span class="chip">${escapeHtml(label)}: ${escapeHtml(value)} <button id="${id}" class="chip-x" aria-label="Remove">×</button></span>`;
+}
+
+function renderGrid() {
+  const total = FILTERED.length;
+  countEl.textContent = total ? `(${total})` : '';
+
+  grid.innerHTML = '';
+  const upto = PAGE * PAGE_SIZE;
+  const slice = FILTERED.slice(0, upto);
+
+  if (!slice.length) {
+    grid.innerHTML = `<div class="empty">No results</div>`;
+    btnMore.style.display = 'none';
+    return;
     }
 
-    function renderGrid(posts) {
-      gridContainer.innerHTML = '';
-      if (!posts || posts.length === 0) {
-        for (let i = 0; i < 6; i++) {
-          gridContainer.appendChild(createCard(null));
-        }
-        return;
-      }
-      posts.forEach(post => {
-        gridContainer.appendChild(createCard(post));
-      });
-    }
+  slice.forEach(post => grid.appendChild(card(post)));
 
-    // --- Modal básico (primer asset, igual que tu UI actual) ---
-    function openModal(post) {
-      currentPost = post || null;
-      if (!currentPost || !currentPost.assets || currentPost.assets.length === 0) return;
+  btnMore.style.display = (upto < total) ? 'inline-flex' : 'none';
+}
 
-      const main = currentPost.assets[0];
-      if (main.type === 'video') {
-        modalVideo.src = main.url;
-        modalVideo.style.display = 'block';
-        modalImage.style.display = 'none';
-        modalVideo.play().catch(()=>{});
-      } else {
-        modalImage.src = main.url;
-        modalImage.style.display = 'block';
-        modalVideo.style.display = 'none';
-        modalVideo.pause();
-      }
-      modalTitle.textContent = currentPost.title || '';
-      modal.style.display = 'flex';
-      modal.setAttribute('aria-hidden', 'false');
-      modal.focus();
-    }
+function card(post) {
+  const el = document.createElement('button');
+  el.className = 'card';
+  el.setAttribute('type', 'button');
+  el.setAttribute('aria-label', post.title || 'post');
 
-    function closeModal() {
-      modal.style.display = 'none';
-      modal.setAttribute('aria-hidden', 'true');
-      modalVideo.pause();
-      modalVideo.currentTime = 0;
-    }
+  const main = (post.assets && post.assets[0]) || null;
 
-    modal.addEventListener('click', e => {
-      if (e.target === modal) closeModal();
-    });
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && modal.style.display === 'flex') closeModal();
-    });
+  if (main && main.type === 'video') {
+    el.innerHTML = `
+      <div class="media-wrap">
+        <video class="media" src="${encodeURI(main.url)}" playsinline muted></video>
+        <span class="badge badge-video">▶</span>
+      </div>
+      <div class="overlay">
+        <div class="ovl-title">${escapeHtml(post.title || '')}</div>
+        <div class="ovl-meta">${escapeHtml(post.client || '')}${post.project ? ' · ' + escapeHtml(post.project) : ''}${post.date ? ' · ' + escapeHtml(post.date) : ''}</div>
+      </div>
+    `;
+    el.addEventListener('mouseenter', () => { const v = el.querySelector('video'); v && v.play(); });
+    el.addEventListener('mouseleave', () => { const v = el.querySelector('video'); v && v.pause(); });
+  } else if (main && main.type === 'image') {
+    el.innerHTML = `
+      <div class="media-wrap">
+        <img class="media" src="${encodeURI(main.url)}" alt="${escapeHtml(post.title || '')}" />
+      </div>
+      <div class="overlay">
+        <div class="ovl-title">${escapeHtml(post.title || '')}</div>
+        <div class="ovl-meta">${escapeHtml(post.client || '')}${post.project ? ' · ' + escapeHtml(post.project) : ''}${post.date ? ' · ' + escapeHtml(post.date) : ''}</div>
+      </div>
+    `;
+  } else {
+    el.innerHTML = `<div class="media-wrap placeholder">No image</div>`;
+  }
 
-    // --- Carga de datos reales desde /api/grid (sin tocar UI) ---
-    async function loadAndRender() {
-      try {
-        const r = await fetch('/api/grid?page=1&pageSize=24', { cache: 'no-store' });
-        const j = await r.json();
-        // El backend devuelve { page, pageSize, total, posts: [...] }
-        renderGrid(j.posts || []);
-      } catch (e) {
-        console.error(e);
-        renderGrid([]); // placeholders si falla
-      }
-    }
+  el.onclick = () => openModal(post);
 
-    // Init
-    loadAndRender();
+  return el;
+}
 
-    // --- Opcional: desactivar cualquier UI de “bio” si la hubiera ---
-    (function killBio(){
-      try {
-        document.querySelectorAll('[data-ui="bio-menu"], [data-ui="bio-toggle"], .js-bio, [data-bio]')
-          .forEach(el => el.remove());
-        window.__DISABLE_BIO__ = true;
-      } catch(e) {}
-    })();
-  </script>
+/* -------------------- Modal -------------------- */
+function openModal(post) {
+  const a = (post.assets && post.assets[0]) || null;
+  modalTitle.textContent = post.title || '';
+  if (a && a.type === 'video') {
+    modalVid.src = a.url;
+    modalVid.hidden = false;
+    modalImg.hidden = true;
+    modalVid.play().catch(()=>{});
+  } else {
+    modalImg.src = a ? a.url : '';
+    modalImg.hidden = false;
+    modalVid.hidden = true;
+    modalVid.pause();
+  }
+  modal.hidden = false;
+}
+function closeModal() {
+  modal.hidden = true;
+  modalVid.pause(); modalVid.currentTime = 0;
+}
+modalClose.onclick = closeModal;
+modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+
+/* -------------------- Wire-up -------------------- */
+btnRefresh.onclick = async () => { await bootstrap(); };
+btnMore.onclick = () => { PAGE += 1; renderGrid(); };
+
+selClient.addEventListener('change', () => { onClientChange(); applyFilters(); });
+selProject.addEventListener('change', applyFilters);
+selBrand.addEventListener('change', applyFilters);
+chkDraft.addEventListener('change', async () => { await bootstrap(); }); // draft cambia el fetch
+txtSearch.addEventListener('input', debounce(applyFilters, 250));
+
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+async function bootstrap() {
+  await fetchPosts();
+  buildOptions();
+  onClientChange(); // setea brands según client (si hubiera seleccionado antes)
+  applyFilters();
+}
+
+bootstrap().catch(err => {
+  grid.innerHTML = `<div class="error">Error: ${escapeHtml(err.message)}</div>`;
+});
+</script>
 </body>
 </html>
