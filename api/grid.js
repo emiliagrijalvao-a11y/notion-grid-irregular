@@ -3,153 +3,169 @@ const { Client } = require('@notionhq/client');
 
 module.exports = async (req, res) => {
   const token = process.env.NOTION_TOKEN || '';
-  const DB_ID = process.env.NOTION_DB_CONTENT || process.env.NOTION_DATABASE_ID || '';
+  const DB_ID =
+    process.env.NOTION_DB_CONTENT ||
+    process.env.NOTION_DATABASE_ID ||
+    '';
 
   if (!token || !DB_ID) {
     return res.status(200).json({
       ok: false,
-      error: 'Missing NOTION_TOKEN or NOTION_DB_CONTENT/NOTION_DATABASE_ID'
+      error: 'Missing NOTION_TOKEN or NOTION_DATABASE_ID'
     });
   }
 
   const notion = new Client({ auth: token });
+
+  // util
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
-  function getTitle(p) {
-    const props = p.properties || {};
-    for (const [k, v] of Object.entries(props)) {
-      if (v?.type === 'title') {
-        return (v.title || []).map(t => t.plain_text).join('') || '';
-      }
-    }
-    return p.id;
-  }
-  function getDate(p) {
-    const v = p.properties?.['Publish Date'];
-    if (v?.type === 'date') return v.date?.start || null;
-    return null;
-  }
-  function getCheckbox(p, name) {
-    const v = p.properties?.[name];
-    return v?.type === 'checkbox' ? !!v.checkbox : false;
-  }
-  function getStatus(p) {
-    const v = p.properties?.['Status'];
-    if (v?.type === 'status') return v.status?.name || null;
-    if (v?.type === 'select') return v.select?.name || null;
-    return null;
-  }
-  function getSelect(p, name) {
-    const v = p.properties?.[name];
-    if (v?.type === 'select') return v.select?.name || null;
-    return null;
-  }
-  function getMultiSelect(p, name) {
-    const v = p.properties?.[name];
-    if (v?.type === 'multi_select') return (v.multi_select || []).map(o => o.name);
-    return [];
-  }
-  function getPeopleName(p, name) {
-    const v = p.properties?.[name];
-    if (v?.type === 'people') return v.people?.[0]?.name || null;
-    return null;
-  }
-  function getRichText(p, name) {
-    const v = p.properties?.[name];
-    if (v?.type === 'rich_text') return (v.rich_text || []).map(t => t.plain_text).join('');
-    return '';
-  }
-  function getRollupText(p, name) {
-    const v = p.properties?.[name];
-    if (v?.type === 'rollup') {
-      const arr = v.rollup?.array || [];
-      const texts = arr.map(x => {
-        const t = x?.title || x?.rich_text || [];
-        return (t || []).map(z => z.plain_text).join('');
-      }).filter(Boolean);
-      return texts[0] || null;
-    }
-    return null;
-  }
-  function extractAssets(p) {
-    const props = p.properties || {};
-    const fileProp = props['Attachment'] || props['Attachments'] || props['Files'];
-    const out = [];
-    if (fileProp?.type === 'files') {
-      (fileProp.files || []).forEach(f => {
-        if (f.type === 'external') out.push({ url: f.external.url, type: guessType(f.external.url), source:'attachment' });
-        if (f.type === 'file')     out.push({ url: f.file.url,      type: guessType(f.file.url),      source:'attachment' });
-      });
-    }
-    const link = props['Link']?.url;
-    if (link) out.push({ url: link, type: guessType(link), source:'link' });
-    const canva = props['Canva']?.url;
-    if (canva) out.push({ url: canva, type: guessType(canva), source:'canva' });
-    return out;
-  }
-  function guessType(url='') {
-    const u = url.toLowerCase();
-    if (u.endsWith('.mp4') || u.endsWith('.mov') || u.endsWith('.webm') || u.includes('video')) return 'video';
-    return 'image';
-  }
-  function pickColor(i){
-    const colors = ['#10B981','#8B5CF6','#EC4899','#F59E0B','#3B82F6','#EF4444','#FCD34D','#14B8A6','#A855F7','#22C55E'];
-    return colors[i % colors.length];
-  }
-
   try {
-    const url = new URL(req.url, 'http://x');
-    const limit     = clamp(parseInt(url.searchParams.get('limit') || '12', 10), 1, 100);
-    const cursor    = url.searchParams.get('cursor') || null;
-    const statusQ   = (url.searchParams.get('status') || 'published').toLowerCase(); // 'published' | 'all'
-    const q         = (url.searchParams.get('q') || '').trim().toLowerCase();
-    const client    = (url.searchParams.get('client')  || '').trim();
-    const project   = (url.searchParams.get('project') || '').trim();
-    const brand     = (url.searchParams.get('brand')   || '').trim();
-    const platform  = (url.searchParams.get('platform')|| '').trim();
-
+    // 1) leer metadatos de la DB
     const meta = await notion.databases.retrieve({ database_id: DB_ID });
     const props = meta.properties || {};
-    const has = (k) => Object.prototype.hasOwnProperty.call(props, k);
 
+    // detectar nombres reales
+    const nameKey =
+      Object.keys(props).find(k => props[k].type === 'title') || 'Name';
+
+    // Publish Date puede llamarse "Publish Date", "Fecha", "Date"
+    const dateKey =
+      Object.keys(props).find(
+        k =>
+          props[k].type === 'date' &&
+          ['publish date', 'fecha', 'date'].includes(k.toLowerCase())
+      ) || null;
+
+    // Status puede ser status o select
+    const statusKey =
+      Object.keys(props).find(
+        k => props[k].type === 'status' || props[k].type === 'select'
+      ) || null;
+
+    // checkboxes
+    const hideKey = Object.keys(props).find(
+      k => props[k].type === 'checkbox' && k.toLowerCase().includes('hide')
+    );
+    const archivedKey = Object.keys(props).find(
+      k =>
+        props[k].type === 'checkbox' &&
+        (k.toLowerCase().includes('archiv') || k.toLowerCase().includes('archive'))
+    );
+
+    // rollups
+    const clientRollKey = Object.keys(props).find(
+      k => props[k].type === 'rollup' && k.toLowerCase().includes('client')
+    );
+    const projectRollKey = Object.keys(props).find(
+      k => props[k].type === 'rollup' && k.toLowerCase().includes('project')
+    );
+    const brandRollKey = Object.keys(props).find(
+      k => props[k].type === 'rollup' && k.toLowerCase().includes('brand')
+    );
+
+    // attachments
+    const attachKey = Object.keys(props).find(k => {
+      const t = props[k].type;
+      return t === 'files' || t === 'file';
+    });
+
+    // copy
+    const copyKey = Object.keys(props).find(
+      k =>
+        props[k].type === 'rich_text' &&
+        (k.toLowerCase().includes('copy') || k.toLowerCase().includes('caption'))
+    );
+
+    // owner
+    const ownerKey = Object.keys(props).find(
+      k => props[k].type === 'people' && k.toLowerCase().includes('owner')
+    );
+
+    // platform
+    const platformKey = Object.keys(props).find(
+      k => props[k].type === 'multi_select' && k.toLowerCase().includes('platform')
+    );
+
+    // type
+    const typeKey = Object.keys(props).find(
+      k => props[k].type === 'select' && k.toLowerCase().includes('type')
+    );
+
+    // pinned
+    const pinnedKey = Object.keys(props).find(
+      k => props[k].type === 'checkbox' && k.toLowerCase().includes('pinned')
+    );
+
+    // === leer query
+    const url = new URL(req.url, 'http://x');
+    const limit = clamp(parseInt(url.searchParams.get('limit') || '12', 10), 1, 100);
+    const cursor = url.searchParams.get('cursor') || null;
+    const statusQ = (url.searchParams.get('status') || 'published').toLowerCase();
+    const q = (url.searchParams.get('q') || '').trim().toLowerCase();
+    const clientQ = (url.searchParams.get('client') || '').trim();
+    const projectQ = (url.searchParams.get('project') || '').trim();
+    const brandQ = (url.searchParams.get('brand') || '').trim();
+    const platformQ = (url.searchParams.get('platform') || '').trim();
+
+    // 2) construir filtro seguro
     const AND = [];
-    if (has('Hide'))      AND.push({ property:'Hide', checkbox:{ equals:false }});
-    if (has('Archivado')) AND.push({ property:'Archivado', checkbox:{ equals:false }});
 
-    if (statusQ !== 'all') {
-      const targets = ['Publicado','Entregado','Scheduled','Aprobado'];
-      if (has('Status')) {
-        if (props['Status'].type === 'status') {
-          AND.push({ or: targets.map(s => ({ property:'Status', status:{ equals:s }})) });
-        } else if (props['Status'].type === 'select') {
-          AND.push({ or: targets.map(s => ({ property:'Status', select:{ equals:s }})) });
+    if (hideKey) {
+      AND.push({ property: hideKey, checkbox: { equals: false } });
+    }
+    if (archivedKey) {
+      AND.push({ property: archivedKey, checkbox: { equals: false } });
+    }
+
+    // published only
+    if (statusKey && statusQ !== 'all') {
+      const pubStatuses = ['publicado', 'entregado', 'scheduled', 'aprobado', 'published'];
+      const or = pubStatuses.map(s => {
+        if (props[statusKey].type === 'status') {
+          return { property: statusKey, status: { equals: s } };
         }
-      }
+        return { property: statusKey, select: { equals: s } };
+      });
+      AND.push({ or });
     }
 
-    if (client && has('ClientName')) {
-      AND.push({ property:'ClientName', rollup:{ any:{ rich_text:{ equals: client }}}});
+    // client / project / brand
+    if (clientQ && clientRollKey) {
+      AND.push({
+        property: clientRollKey,
+        rollup: { any: { rich_text: { equals: clientQ } } }
+      });
     }
-    if (project && has('ProjectName')) {
-      AND.push({ property:'ProjectName', rollup:{ any:{ rich_text:{ equals: project }}}});
+    if (projectQ && projectRollKey) {
+      AND.push({
+        property: projectRollKey,
+        rollup: { any: { rich_text: { equals: projectQ } } }
+      });
     }
-    if (brand && has('BrandName')) {
-      AND.push({ property:'BrandName', rollup:{ any:{ rich_text:{ equals: brand }}}});
+    if (brandQ && brandRollKey) {
+      AND.push({
+        property: brandRollKey,
+        rollup: { any: { rich_text: { equals: brandQ } } }
+      });
     }
 
-    if (platform && platform.toLowerCase() !== 'all' && has('Platform')) {
-      AND.push({ property:'Platform', multi_select:{ contains: platform }});
+    if (platformQ && platformQ !== 'all' && platformKey) {
+      AND.push({
+        property: platformKey,
+        multi_select: { contains: platformQ }
+      });
     }
 
+    // search
     if (q) {
       const OR = [];
-      for (const [key, def] of Object.entries(props)) {
-        if (def?.type === 'title') {
-          OR.push({ property:key, title:{ contains: q }});
-          break;
-        }
+      if (nameKey) {
+        OR.push({ property: nameKey, title: { contains: q } });
       }
-      if (has('Copy')) OR.push({ property:'Copy', rich_text:{ contains: q }});
+      if (copyKey) {
+        OR.push({ property: copyKey, rich_text: { contains: q } });
+      }
       if (OR.length) AND.push({ or: OR });
     }
 
@@ -159,37 +175,133 @@ module.exports = async (req, res) => {
       filter: AND.length ? { and: AND } : undefined,
       sorts: []
     };
-    if (has('Pinned'))        query.sorts.push({ property:'Pinned', direction:'descending' });
-    if (has('Publish Date'))  query.sorts.push({ property:'Publish Date', direction:'descending' });
-    if (cursor) query.start_cursor = cursor;
 
+    if (pinnedKey) {
+      query.sorts.push({ property: pinnedKey, direction: 'descending' });
+    }
+    if (dateKey) {
+      query.sorts.push({ property: dateKey, direction: 'descending' });
+    }
+
+    if (cursor) {
+      query.start_cursor = cursor;
+    }
+
+    // 3) hacer query real
     const resp = await notion.databases.query(query);
 
-    const posts = resp.results.map(p => ({
-      id: p.id,
-      title: getTitle(p),
-      date: getDate(p),
-      status: getStatus(p),
-      type: getSelect(p,'Type'),
-      platforms: getMultiSelect(p,'Platform'),
-      client: getRollupText(p,'ClientName'),
-      project: getRollupText(p,'ProjectName'),
-      brand: getRollupText(p,'BrandName'),
-      owner: getPeopleName(p,'Owner'),
-      pinned: getCheckbox(p,'Pinned'),
-      archived: getCheckbox(p,'Archivado'),
-      hidden: getCheckbox(p,'Hide'),
-      copy: getRichText(p,'Copy'),
-      assets: extractAssets(p)
-    }));
+    // 4) mapear resultados
+    const posts = resp.results.map(page => {
+      const p = page.properties || {};
 
-    const uniq = (arr) => Array.from(new Set(arr.filter(Boolean)));
+      // título
+      let title = page.id;
+      if (nameKey && p[nameKey]?.title) {
+        title = p[nameKey].title.map(t => t.plain_text).join('') || page.id;
+      }
+
+      // fecha
+      let date = null;
+      if (dateKey && p[dateKey]?.date) {
+        date = p[dateKey].date.start || null;
+      }
+
+      // status
+      let status = null;
+      if (statusKey) {
+        const def = p[statusKey];
+        if (def.type === 'status') status = def.status?.name || null;
+        else if (def.type === 'select') status = def.select?.name || null;
+      }
+
+      // copy
+      let copy = '';
+      if (copyKey && p[copyKey]?.rich_text) {
+        copy = p[copyKey].rich_text.map(t => t.plain_text).join('');
+      }
+
+      // rollups
+      function rollupToString(key) {
+        if (!key || !p[key] || p[key].type !== 'rollup') return null;
+        const arr = p[key].rollup?.array || [];
+        const texts = arr.map(x => {
+          const title = x?.title || x?.rich_text || [];
+          return (title || []).map(z => z.plain_text).join('');
+        }).filter(Boolean);
+        return texts[0] || null;
+      }
+
+      const client = rollupToString(clientRollKey);
+      const project = rollupToString(projectRollKey);
+      const brand = rollupToString(brandRollKey);
+
+      // owner
+      let owner = null;
+      if (ownerKey && p[ownerKey]?.people?.length) {
+        owner = p[ownerKey].people[0].name;
+      }
+
+      // platforms
+      let platforms = [];
+      if (platformKey && p[platformKey]?.multi_select) {
+        platforms = p[platformKey].multi_select.map(o => o.name);
+      }
+
+      // type
+      let type = null;
+      if (typeKey && p[typeKey]?.select) {
+        type = p[typeKey].select.name;
+      }
+
+      // pinned/hide/archivado
+      const pinned = pinnedKey ? !!p[pinnedKey]?.checkbox : false;
+      const hidden = hideKey ? !!p[hideKey]?.checkbox : false;
+      const archived = archivedKey ? !!p[archivedKey]?.checkbox : false;
+
+      // assets
+      const assets = [];
+      if (attachKey && p[attachKey]?.files) {
+        for (const f of p[attachKey].files) {
+          if (f.type === 'external') {
+            assets.push({ url: f.external.url, type: guessType(f.external.url), source: 'attachment' });
+          } else if (f.type === 'file') {
+            assets.push({ url: f.file.url, type: guessType(f.file.url), source: 'attachment' });
+          }
+        }
+      }
+
+      return {
+        id: page.id,
+        title,
+        date,
+        status,
+        type,
+        platforms,
+        client,
+        project,
+        brand,
+        owner,
+        pinned,
+        archived,
+        hidden,
+        copy,
+        assets
+      };
+    });
+
+    // 5) construir filtros desde lo que sí vino
+    const uniq = arr => [...new Set(arr.filter(Boolean))];
     const filters = {
-      clients:   uniq(posts.map(p => p.client)).sort(),
-      projects:  uniq(posts.map(p => p.project)).sort(),
-      brands:    uniq(posts.map(p => p.brand)).sort(),
+      clients: uniq(posts.map(p => p.client)).sort(),
+      projects: uniq(posts.map(p => p.project)).sort(),
+      brands: uniq(posts.map(p => p.brand)).sort(),
       platforms: ['Instagram','Tiktok','Youtube','Facebook','Página web','Pantalla'],
-      owners:    uniq(posts.map(p => p.owner)).map((n,i)=>({ name:n, color:pickColor(i), initials:(n||'??').slice(0,2).toUpperCase(), count: posts.filter(p=>p.owner===n).length }))
+      owners: uniq(posts.map(p => p.owner)).map((n,i) => ({
+        name: n,
+        color: pickColor(i),
+        initials: (n || '??').slice(0,2).toUpperCase(),
+        count: posts.filter(p => p.owner === n).length
+      }))
     };
 
     return res.status(200).json({
@@ -197,13 +309,37 @@ module.exports = async (req, res) => {
       posts,
       filters,
       has_more: resp.has_more,
-      next_cursor: resp.next_cursor || null
+      next_cursor: resp.next_cursor || null,
+      // esto es temporal para depurar, lo puedes borrar luego 👇
+      debug: {
+        nameKey,
+        dateKey,
+        statusKey,
+        clientRollKey,
+        projectRollKey,
+        brandRollKey,
+        attachKey,
+        copyKey,
+        ownerKey,
+        platformKey,
+        pinnedKey
+      }
     });
   } catch (err) {
-    console.error('[grid] error:', err?.body || err);
+    console.error('[api/grid] FATAL:', err?.body || err);
     return res.status(500).json({
-      ok:false,
+      ok: false,
       error: (err?.body && err.body.message) || err?.message || String(err)
     });
+  }
+
+  function guessType(url = '') {
+    const u = url.toLowerCase();
+    if (u.endsWith('.mp4') || u.endsWith('.mov') || u.includes('video')) return 'video';
+    return 'image';
+  }
+  function pickColor(i){
+    const colors = ['#10B981','#8B5CF6','#EC4899','#F59E0B','#3B82F6','#EF4444','#FCD34D','#14B8A6','#A855F7','#22C55E'];
+    return colors[i % colors.length];
   }
 };
