@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Posts</title>
-  <!-- Usa tus estilos base del widget (Flujo Creativo). No añadimos CSS nuevo. -->
+  <!-- Tus estilos del widget (no añadimos CSS nuevo) -->
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -55,7 +55,7 @@
     </div>
   </main>
 
-  <!-- Modal simple -->
+  <!-- Modal -->
   <div id="modal" class="modal" hidden>
     <div class="modal-content">
       <button id="modalClose" class="btn btn-ghost" aria-label="Close">×</button>
@@ -64,524 +64,283 @@
       </div>
       <div class="modal-body">
         <img id="modalImg" alt="" />
-        <video id="modalVid" controls playsinline muted hidden></video>
+        <video id="modalVid" controls playsinline hidden></video>
       </div>
     </div>
   </div>
 
-<script>
-/* -------------------- Estado -------------------- */
-let ALL = [];           // posts del backend
-let FILTERED = [];      // posts filtrados
-let PAGE = 1;
-const PAGE_SIZE = 24;
-
-/* -------------------- DOM -------------------- */
-const selProject = document.getElementById('selProject');
-const selClient  = document.getElementById('selClient');
-const selBrand   = document.getElementById('selBrand');
-const chkDraft   = document.getElementById('chkDraft');
-const txtSearch  = document.getElementById('txtSearch');
-const chips      = document.getElementById('chips');
-const grid       = document.getElementById('grid');
-const countEl    = document.getElementById('count');
-const btnMore    = document.getElementById('btnMore');
-const btnRefresh = document.getElementById('btnRefresh');
-
-const modal      = document.getElementById('modal');
-const modalClose = document.getElementById('modalClose');
-const modalTitle = document.getElementById('modalTitle');
-const modalImg   = document.getElementById('modalImg');
-const modalVid   = document.getElementById('modalVid');
-
-/* -------------------- Utils -------------------- */
-function debounce(fn, ms = 250) {
-  let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
-}
-function uniq(arr) { return [...new Set(arr.filter(Boolean))]; }
-
-/* -------------------- Fetch -------------------- */
-async function fetchPosts() {
-  const draft = chkDraft.checked ? '1' : '';
-  const q     = txtSearch.value.trim();
-  const qs    = new URLSearchParams();
-  if (draft) qs.set('draft', '1');
-  if (q)     qs.set('q', q);
-
-  const url = '/api/grid' + (qs.toString() ? `?${qs}` : '');
-  const r = await fetch(url);
-  if (!r.ok) throw new Error('Error leyendo /api/grid');
-  const data = await r.json();
-  ALL = (data.posts || []).map(p => ({
-    ...p,
-    client: p.client || "",
-    brands: Array.isArray(p.brands) ? p.brands : []
-  }));
-}
-
-function buildOptions() {
-  // Projects
-  const proj = uniq(ALL.map(p => p.project));
-  selProject.innerHTML = '<option value="">All Projects</option>' +
-    proj.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
-
-  // Clients
-  const clients = uniq(ALL.map(p => p.client));
-  selClient.innerHTML = '<option value="">All Clients</option>' +
-    clients.map(x => `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`).join('');
-
-  // Brand depende de client -> se recalcula en onClientChange
-  selBrand.disabled = !selClient.value;
-  selBrand.innerHTML = '<option value="">All Brands</option>';
-}
-
-function onClientChange() {
-  const c = selClient.value.trim();
-  if (!c) {
-    selBrand.disabled = true;
-    selBrand.innerHTML = '<option value="">All Brands</option>';
-    return;
-  }
-  const brands = uniq(ALL.filter(p => p.client === c).flatMap(p => p.brands));
-  selBrand.disabled = false;
-  selBrand.innerHTML = '<option value="">All Brands</option>' +
-    brands.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
-  // Autoselect si hay una sola marca
-  if (brands.length === 1) selBrand.value = brands[0];
-}
-
-function currentFilters() {
-  return {
-    project: selProject.value.trim(),
-    client:  selClient.value.trim(),
-    brand:   selBrand.value.trim(),
-    q:       txtSearch.value.trim().toLowerCase(),
-    draft:   chkDraft.checked
-  };
-}
-
-function applyFilters() {
-  const f = currentFilters();
-  let arr = [...ALL];
-
-  if (f.project) arr = arr.filter(p => p.project === f.project);
-  if (f.client)  arr = arr.filter(p => p.client  === f.client);
-  if (f.brand)   arr = arr.filter(p => (p.brands || []).includes(f.brand));
-  if (f.q)       arr = arr.filter(p => (p.title || "").toLowerCase().includes(f.q));
-
-  FILTERED = arr;
-  PAGE = 1;
-  renderChips();
-  renderGrid();
-}
-
-function renderChips() {
-  const f = currentFilters();
-  const parts = [];
-  if (f.project) parts.push(chip('Project', f.project, () => { selProject.value = ""; applyFilters(); }));
-  if (f.client)  parts.push(chip('Client',  f.client,  () => { selClient.value = ""; selBrand.value = ""; onClientChange(); applyFilters(); }));
-  if (f.brand)   parts.push(chip('Brand',   f.brand,   () => { selBrand.value = ""; applyFilters(); }));
-  if (f.q)       parts.push(chip('q',       f.q,       () => { txtSearch.value = ""; applyFilters(); }));
-  chips.innerHTML = parts.join('') + (parts.length ? `<button class="btn btn-ghost" id="clearAll">Clear all</button>` : '');
-  const clearBtn = document.getElementById('clearAll');
-  if (clearBtn) clearBtn.onclick = () => {
-    selProject.value = ""; selClient.value = ""; selBrand.value = ""; onClientChange(); txtSearch.value = "";
-    applyFilters();
-  };
-}
-
-function chip(label, value, onRemove) {
-  const id = 'chip_' + Math.random().toString(36).slice(2);
-  queueMicrotask(() => {
-    const x = document.getElementById(id);
-    if (x) x.onclick = onRemove;
-  });
-  return `<span class="chip">${escapeHtml(label)}: ${escapeHtml(value)} <button id="${id}" class="chip-x" aria-label="Remove">×</button></span>`;
-}
-
-function renderGrid() {
-  const total = FILTERED.length;
-  countEl.textContent = total ? `(${total})` : '';
-
-  grid.innerHTML = '';
-  const upto = PAGE * PAGE_SIZE;
-  const slice = FILTERED.slice(0, upto);
-
-  if (!slice.length) {
-    grid.innerHTML = `<div class="empty">No results</div>`;
-    btnMore.style.display = 'none';
-    return;
-    }
-
-  slice.forEach(post => grid.appendChild(card(post)));
-
-  btnMore.style.display = (upto < total) ? 'inline-flex' : 'none';
-}
-
-function card(post) {
-  const el = document.createElement('button');
-  el.className = 'card';
-  el.setAttribute('type', 'button');
-  el.setAttribute('aria-label', post.title || 'post');
-
-  const main = (post.assets && post.assets[0]) || null;
-
-  if (main && main.type === 'video') {
-    el.innerHTML = `
-      <div class="media-wrap">
-        <video class="media" src="${encodeURI(main.url)}" playsinline muted></video>
-        <span class="badge badge-video">▶</span>
-      </div>
-      <div class="overlay">
-        <div class="ovl-title">${escapeHtml(post.title || '')}</div>
-        <div class="ovl-meta">${escapeHtml(post.client || '')}${post.project ? ' · ' + escapeHtml(post.project) : ''}${post.date ? ' · ' + escapeHtml(post.date) : ''}</div>
-      </div>
-    `;
-    el.addEventListener('mouseenter', () => { const v = el.querySelector('video'); v && v.play(); });
-    el.addEventListener('mouseleave', () => { const v = el.querySelector('video'); v && v.pause(); });
-  } else if (main && main.type === 'image') {
-    el.innerHTML = `
-      <div class="media-wrap">
-        <img class="media" src="${encodeURI(main.url)}" alt="${escapeHtml(post.title || '')}" />
-      </div>
-      <div class="overlay">
-        <div class="ovl-title">${escapeHtml(post.title || '')}</div>
-        <div class="ovl-meta">${escapeHtml(post.client || '')}${post.project ? ' · ' + escapeHtml(post.project) : ''}${post.date ? ' · ' + escapeHtml(post.date) : ''}</div>
-      </div>
-    `;
-  } else {
-    el.innerHTML = `<div class="media-wrap placeholder">No image</div>`;
-  }
-
-  el.onclick = () => openModal(post);
-
-  return el;
-}
-
-/* -------------------- Modal -------------------- */
-function openModal(post) {
-  const a = (post.assets && post.assets[0]) || null;
-  modalTitle.textContent = post.title || '';
-  if (a && a.type === 'video') {
-    modalVid.src = a.url;
-    modalVid.hidden = false;
-    modalImg.hidden = true;
-    modalVid.play().catch(()=>{});
-  } else {
-    modalImg.src = a ? a.url : '';
-    modalImg.hidden = false;
-    modalVid.hidden = true;
-    modalVid.pause();
-  }
-  modal.hidden = false;
-}
-function closeModal() {
-  modal.hidden = true;
-  modalVid.pause(); modalVid.currentTime = 0;
-}
-modalClose.onclick = closeModal;
-modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) closeModal(); });
-
-/* -------------------- Wire-up -------------------- */
-btnRefresh.onclick = async () => { await bootstrap(); };
-btnMore.onclick = () => { PAGE += 1; renderGrid(); };
-
-selClient.addEventListener('change', () => { onClientChange(); applyFilters(); });
-selProject.addEventListener('change', applyFilters);
-selBrand.addEventListener('change', applyFilters);
-chkDraft.addEventListener('change', async () => { await bootstrap(); }); // draft cambia el fetch
-txtSearch.addEventListener('input', debounce(applyFilters, 250));
-
-function escapeHtml(s) {
-  return String(s || "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-}
-
-async function bootstrap() {
-  await fetchPosts();
-  buildOptions();
-  onClientChange(); // setea brands según client (si hubiera seleccionado antes)
-  applyFilters();
-}
-
-bootstrap().catch(err => {
-  grid.innerHTML = `<div class="error">Error: ${escapeHtml(err.message)}</div>`;
-});
-</script>
-</body>
   <script>
-// ====== STATE ======
-const WIDGET_STATE = {
-  project: '',
-  client: '',
-  brand: '',
-  q: '',
-  draft: 0,
-  page: 1,
-  pageSize: 24,
-  end: false,
-  meta: {
-    projects: [],
-    clients: [],
-    brandsByClient: {}
+  // ==================== Estado ====================
+  const STATE = {
+    meta: { projects: [], clients: [], brandsByClient: {} },
+    filters: { project: '', client: '', brand: '', q: '', draft: false },
+    page: 1, pageSize: 24, hasMore: false,
+    view: [] // posts acumulados para "Load more"
+  };
+
+  // ==================== DOM ====================
+  const el = {
+    selProject: document.getElementById('selProject'),
+    selClient:  document.getElementById('selClient'),
+    selBrand:   document.getElementById('selBrand'),
+    chkDraft:   document.getElementById('chkDraft'),
+    txtSearch:  document.getElementById('txtSearch'),
+    chips:      document.getElementById('chips'),
+    grid:       document.getElementById('grid'),
+    count:      document.getElementById('count'),
+    btnMore:    document.getElementById('btnMore'),
+    btnRefresh: document.getElementById('btnRefresh'),
+    modal:      document.getElementById('modal'),
+    modalClose: document.getElementById('modalClose'),
+    modalTitle: document.getElementById('modalTitle'),
+    modalImg:   document.getElementById('modalImg'),
+    modalVid:   document.getElementById('modalVid'),
+  };
+
+  // ==================== Utils ====================
+  const esc = s => String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  const debounce = (fn, ms=250) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; };
+
+  // ==================== META (projects/clients/brands) ====================
+  async function loadMeta() {
+    const r = await fetch('/api/grid?meta=1');
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'Error meta');
+    STATE.meta = j.filters || { projects:[], clients:[], brandsByClient:{} };
+    paintSelects();
   }
-};
 
-// ====== ELEMENTOS (ajusta los IDs a los tuyos) ======
-const els = {
-  refresh: document.getElementById('refreshBtn') || document.getElementById('btn-refresh'),
-  project: document.getElementById('filter-project'),   // <select> o <button>
-  client:  document.getElementById('filter-client'),
-  brand:   document.getElementById('filter-brand'),
-  search:  document.getElementById('search-input'),
-  draft:   document.getElementById('draft-toggle'),
-  chips:   document.getElementById('active-filters'),
-  grid:    document.getElementById('postsGrid') || document.getElementById('grid'),
-  loadMore:document.getElementById('load-more'),
-};
+  function paintSelects() {
+    // Projects
+    el.selProject.innerHTML = '<option value="">All Projects</option>' +
+      (STATE.meta.projects || []).map(p => `<option>${esc(p)}</option>`).join('');
+    if (STATE.filters.project) el.selProject.value = STATE.filters.project;
 
-// helper para armar query
-function buildQuery() {
-  const p = new URLSearchParams();
-  if (WIDGET_STATE.project) p.set('project', WIDGET_STATE.project);
-  if (WIDGET_STATE.client)  p.set('client',  WIDGET_STATE.client);
-  if (WIDGET_STATE.brand)   p.set('brand',   WIDGET_STATE.brand);
-  if (WIDGET_STATE.q)       p.set('q',       WIDGET_STATE.q);
-  if (WIDGET_STATE.draft)   p.set('draft', '1');
-  p.set('page', WIDGET_STATE.page);
-  p.set('pageSize', WIDGET_STATE.pageSize);
-  return p.toString();
-}
+    // Clients
+    el.selClient.innerHTML = '<option value="">All Clients</option>' +
+      (STATE.meta.clients || []).map(c => `<option>${esc(c)}</option>`).join('');
+    if (STATE.filters.client) el.selClient.value = STATE.filters.client;
 
-// ============ FETCH META (para llenar selects) ============
-async function fetchMeta() {
-  const res = await fetch('/api/grid?meta=1');
-  if (!res.ok) {
-    console.error('No pude leer /api/grid?meta=1');
-    return;
+    // Brands (depende del client)
+    paintBrands();
   }
-  const json = await res.json();
-  const f = json.filters || {};
-  WIDGET_STATE.meta.projects = f.projects || [];
-  WIDGET_STATE.meta.clients  = f.clients  || [];
-  WIDGET_STATE.meta.brandsByClient = f.brandsByClient || {};
 
-  // si tus selects existen, los llenas aquí:
-  if (els.project && els.project.tagName === 'SELECT') {
-    fillSelect(els.project, WIDGET_STATE.meta.projects, 'All projects');
-  }
-  if (els.client && els.client.tagName === 'SELECT') {
-    fillSelect(els.client, WIDGET_STATE.meta.clients, 'All clients');
-  }
-  syncBrandSelect();
-}
-
-function fillSelect(el, items, label) {
-  el.innerHTML = '';
-  const opt = document.createElement('option');
-  opt.value = '';
-  opt.textContent = label;
-  el.appendChild(opt);
-  items.forEach(i => {
-    const o = document.createElement('option');
-    o.value = i;
-    o.textContent = i;
-    el.appendChild(o);
-  });
-}
-
-function syncBrandSelect() {
-  if (!els.brand) return;
-  const list = WIDGET_STATE.client
-    ? (WIDGET_STATE.meta.brandsByClient[WIDGET_STATE.client] || [])
-    : [];
-  els.brand.disabled = !WIDGET_STATE.client;
-  fillSelect(els.brand, list, 'All brands');
-  // autoselect si hay 1 sola
-  if (WIDGET_STATE.client && list.length === 1) {
-    WIDGET_STATE.brand = list[0];
-    els.brand.value = list[0];
-  } else if (!WIDGET_STATE.client) {
-    WIDGET_STATE.brand = '';
-  }
-  renderChips();
-}
-
-// ============ FETCH POSTS ============
-async function fetchPosts(reset=false) {
-  if (reset) {
-    WIDGET_STATE.page = 1;
-    WIDGET_STATE.end = false;
-    if (els.grid) els.grid.innerHTML = '';
-    if (els.loadMore) els.loadMore.style.display = 'none';
-  }
-  if (WIDGET_STATE.end) return;
-
-  const q = buildQuery();
-  const res = await fetch('/api/grid?' + q);
-  if (!res.ok) {
-    console.error('Error leyendo /api/grid');
-    if (els.grid && !els.grid.innerHTML) {
-      els.grid.textContent = 'Error: Error leyendo /api/grid';
+  function paintBrands() {
+    const c = STATE.filters.client;
+    const pool = c ? (STATE.meta.brandsByClient[c] || []) : [];
+    el.selBrand.disabled = !c;
+    el.selBrand.innerHTML = '<option value="">All Brands</option>' + pool.map(b=>`<option>${esc(b)}</option>`).join('');
+    // autoselect si hay una sola
+    if (c && pool.length === 1) {
+      STATE.filters.brand = pool[0];
+      el.selBrand.value = pool[0];
+    } else if (!pool.includes(STATE.filters.brand)) {
+      STATE.filters.brand = '';
     }
-    return;
+    paintChips();
   }
-  const json = await res.json();
-  const posts = json.posts || [];
 
-  renderPosts(posts);
-
-  // paginación
-  if (json.hasMore) {
-    if (els.loadMore) els.loadMore.style.display = 'block';
-  } else {
-    WIDGET_STATE.end = true;
-    if (els.loadMore) els.loadMore.style.display = 'none';
+  // ==================== FETCH POSTS (server-side filters/paginación) ====================
+  function buildQS() {
+    const p = new URLSearchParams();
+    if (STATE.filters.project) p.set('project', STATE.filters.project);
+    if (STATE.filters.client)  p.set('client',  STATE.filters.client);
+    if (STATE.filters.brand)   p.set('brand',   STATE.filters.brand);
+    if (STATE.filters.q)       p.set('q',       STATE.filters.q);
+    if (STATE.filters.draft)   p.set('draft',   '1');
+    p.set('page', STATE.page);
+    p.set('pageSize', STATE.pageSize);
+    return p.toString();
   }
-}
 
-// ============ RENDER POSTS (usa TU card) ============
-function renderPosts(posts) {
-  if (!els.grid) return;
-  posts.forEach(post => {
-    const card = createPostCard(post);
-    els.grid.appendChild(card);
-  });
-}
+  async function loadPosts(reset=true) {
+    if (reset) { STATE.page = 1; STATE.view = []; STATE.hasMore = false; }
+    const r = await fetch('/api/grid?' + buildQS());
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'Error /api/grid');
 
-function createPostCard(post) {
-  // AQUÍ USAS TU HTML DE CARD
-  // yo te dejo una versión mínima, pero tú cambias el contenido
-  const card = document.createElement('div');
-  card.className = 'post-card'; // usa tu clase existente
+    const posts = j.posts || [];
+    STATE.hasMore = !!j.hasMore;
+    STATE.view = reset ? posts : STATE.view.concat(posts);
 
-  const media = post.assets && post.assets[0];
-  if (media) {
-    if (media.type === 'video') {
-      const v = document.createElement('video');
-      v.src = media.url;
-      v.muted = true;
-      v.playsInline = true;
-      card.appendChild(v);
+    renderGrid();
+    paintChips();
+    el.btnMore.style.display = STATE.hasMore ? '' : 'none';
+  }
+
+  // ==================== RENDER ====================
+  function renderGrid() {
+    el.grid.innerHTML = '';
+    el.count.textContent = STATE.view.length ? `(${STATE.view.length})` : '';
+
+    if (!STATE.view.length) {
+      el.grid.innerHTML = '<div class="empty">No results</div>';
+      return;
+    }
+
+    STATE.view.forEach(post => el.grid.appendChild(renderCard(post)));
+    wireAutoplayHover();
+  }
+
+  function renderCard(post) {
+    const card = document.createElement('button');
+    card.className = 'card';
+    card.type = 'button';
+    card.setAttribute('aria-label', post.title || 'post');
+
+    const a0 = (post.assets && post.assets[0]) || null;
+
+    if (a0 && a0.type === 'video') {
+      card.innerHTML = `
+        <div class="media-wrap">
+          <video class="media" src="${encodeURI(a0.url)}" muted playsinline></video>
+          <span class="badge badge-video">▶</span>
+        </div>
+        <div class="overlay">
+          <div class="ovl-title">${esc(post.title || '')}</div>
+          <div class="ovl-meta">
+            ${esc(post.client || '')}${post.project ? ' · ' + esc(post.project) : ''}${post.date ? ' · ' + esc(post.date) : ''}
+          </div>
+        </div>
+      `;
+    } else if (a0 && a0.type === 'image') {
+      card.innerHTML = `
+        <div class="media-wrap">
+          <img class="media" src="${encodeURI(a0.url)}" alt="${esc(post.title || '')}" />
+        </div>
+        <div class="overlay">
+          <div class="ovl-title">${esc(post.title || '')}</div>
+          <div class="ovl-meta">
+            ${esc(post.client || '')}${post.project ? ' · ' + esc(post.project) : ''}${post.date ? ' · ' + esc(post.date) : ''}
+          </div>
+        </div>
+      `;
     } else {
-      const img = document.createElement('img');
-      img.src = media.url;
-      img.alt = post.title || '';
-      card.appendChild(img);
+      card.innerHTML = `<div class="media-wrap placeholder">No image</div>`;
     }
-  } else {
-    card.textContent = post.title || 'Sin media';
+
+    // badge carrusel si hay múltiples assets
+    if (post.assets && post.assets.length > 1) {
+      const b = document.createElement('span');
+      b.className = 'badge badge-carousel';
+      b.textContent = 'IG';
+      card.querySelector('.media-wrap')?.appendChild(b);
+    }
+
+    // abrir modal
+    card.addEventListener('click', () => openModal(post, 0));
+    return card;
   }
 
-  // overlay título
-  const overlay = document.createElement('div');
-  overlay.className = 'post-overlay'; // tu clase
-  overlay.textContent = post.title || '';
-  card.appendChild(overlay);
-
-  // badge draft
-  if (post.draft) {
-    const b = document.createElement('span');
-    b.className = 'badge-draft'; // crea la clase en tu css o reutiliza una
-    b.textContent = 'Draft';
-    card.appendChild(b);
+  function wireAutoplayHover() {
+    document.querySelectorAll('.card video').forEach(v => {
+      const host = v.closest('.card') || v;
+      host.addEventListener('mouseenter', () => v.play().catch(()=>{}));
+      host.addEventListener('mouseleave', () => v.pause());
+    });
   }
 
-  return card;
-}
+  // ==================== Modal (con soporte de múltiples assets) ====================
+  let MOD = { post: null, i: 0 };
 
-// ============ CHIPS ============
-function renderChips() {
-  if (!els.chips) return;
-  els.chips.innerHTML = '';
-  const chips = [];
+  function openModal(post, idx=0) {
+    MOD.post = post; MOD.i = Math.max(0, Math.min(idx, (post.assets||[]).length-1));
+    const a = (post.assets || [])[MOD.i];
 
-  if (WIDGET_STATE.project) chips.push(['Project', WIDGET_STATE.project, () => {
-    WIDGET_STATE.project = '';
-    if (els.project) els.project.value = '';
-    fetchPosts(true);
-    renderChips();
-  }]);
+    el.modalTitle.textContent = post.title || '';
+    if (a && a.type === 'video') {
+      el.modalVid.src = a.url;
+      el.modalVid.hidden = false;
+      el.modalImg.hidden = true;
+      // sonido solo en modal (no muted)
+      el.modalVid.muted = false;
+      el.modalVid.play().catch(()=>{});
+    } else {
+      el.modalImg.src = a ? a.url : '';
+      el.modalImg.hidden = false;
+      el.modalVid.hidden = true;
+      el.modalVid.pause(); el.modalVid.currentTime = 0;
+    }
+    el.modal.hidden = false;
+  }
+  function closeModal() {
+    el.modal.hidden = true;
+    el.modalVid.pause(); el.modalVid.currentTime = 0;
+    MOD = { post:null, i:0 };
+  }
+  function nextAsset() {
+    if (!MOD.post) return;
+    const total = (MOD.post.assets || []).length;
+    if (total <= 1) return;
+    MOD.i = (MOD.i + 1) % total;
+    openModal(MOD.post, MOD.i);
+  }
+  function prevAsset() {
+    if (!MOD.post) return;
+    const total = (MOD.post.assets || []).length;
+    if (total <= 1) return;
+    MOD.i = (MOD.i - 1 + total) % total;
+    openModal(MOD.post, MOD.i);
+  }
 
-  if (WIDGET_STATE.client) chips.push(['Client', WIDGET_STATE.client, () => {
-    WIDGET_STATE.client = '';
-    if (els.client) els.client.value = '';
-    syncBrandSelect();
-    fetchPosts(true);
-  }]);
-
-  if (WIDGET_STATE.brand) chips.push(['Brand', WIDGET_STATE.brand, () => {
-    WIDGET_STATE.brand = '';
-    if (els.brand) els.brand.value = '';
-    fetchPosts(true);
-  }]);
-
-  if (WIDGET_STATE.q) chips.push(['q', WIDGET_STATE.q, () => {
-    WIDGET_STATE.q = '';
-    if (els.search) els.search.value = '';
-    fetchPosts(true);
-  }]);
-
-  chips.forEach(([label, value, onRemove]) => {
-    const el = document.createElement('span');
-    el.className = 'chip'; // usa tu clase
-    el.innerHTML = `<strong>${label}:</strong> ${value} <button type="button">×</button>`;
-    el.querySelector('button').addEventListener('click', onRemove);
-    els.chips.appendChild(el);
+  el.modalClose.addEventListener('click', closeModal);
+  el.modal.addEventListener('click', (e) => { if (e.target === el.modal) closeModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (el.modal.hidden) return;
+    if (e.key === 'Escape') closeModal();
+    if (e.key === 'ArrowRight') nextAsset();
+    if (e.key === 'ArrowLeft')  prevAsset();
   });
-}
 
-// ============ EVENTOS ============
-if (els.project) els.project.addEventListener('change', () => {
-  WIDGET_STATE.project = els.project.value;
-  renderChips();
-  fetchPosts(true);
-});
+  // ==================== Chips ====================
+  function paintChips() {
+    const f = STATE.filters;
+    const parts = [];
+    if (f.project) parts.push(chip('Project', f.project, () => { f.project=''; el.selProject.value=''; reload(); }));
+    if (f.client)  parts.push(chip('Client',  f.client,  () => { f.client=''; el.selClient.value=''; f.brand=''; paintBrands(); reload(); }));
+    if (f.brand)   parts.push(chip('Brand',   f.brand,   () => { f.brand=''; el.selBrand.value=''; reload(); }));
+    if (f.q)       parts.push(chip('q',       f.q,       () => { f.q=''; el.txtSearch.value=''; reload(); }));
+    if (f.draft)   parts.push(chip('Draft',   'on',      () => { f.draft=false; el.chkDraft.checked=false; reload(); }));
 
-if (els.client) els.client.addEventListener('change', () => {
-  WIDGET_STATE.client = els.client.value;
-  syncBrandSelect();
-  fetchPosts(true);
-});
+    el.chips.innerHTML = parts.join('') + (parts.length ? `<button type="button" class="chip-clear" id="chipClear">Clear all</button>` : '');
+    document.getElementById('chipClear')?.addEventListener('click', () => {
+      STATE.filters = { project:'', client:'', brand:'', q:'', draft:false };
+      el.selProject.value=''; el.selClient.value=''; el.selBrand.value='';
+      el.txtSearch.value=''; el.chkDraft.checked=false;
+      paintBrands();
+      reload();
+    });
+  }
+  function chip(label, value, onX) {
+    const id = 'x-' + Math.random().toString(36).slice(2);
+    queueMicrotask(()=> document.getElementById(id)?.addEventListener('click', onX));
+    return `<span class="chip">${esc(label)}: ${esc(value)} <button type="button" id="${id}" aria-label="Remove">×</button></span>`;
+  }
 
-if (els.brand) els.brand.addEventListener('change', () => {
-  WIDGET_STATE.brand = els.brand.value;
-  renderChips();
-  fetchPosts(true);
-});
+  // ==================== Eventos UI ====================
+  function bindUI() {
+    el.btnRefresh.addEventListener('click', () => reload());
+    el.selProject.addEventListener('change', () => { STATE.filters.project = el.selProject.value || ''; reload(); });
+    el.selClient .addEventListener('change', () => { STATE.filters.client  = el.selClient.value  || ''; paintBrands(); reload(); });
+    el.selBrand  .addEventListener('change', () => { STATE.filters.brand   = el.selBrand.value   || ''; reload(); });
+    el.chkDraft  .addEventListener('change', () => { STATE.filters.draft   = !!el.chkDraft.checked; reload(); });
+    el.txtSearch .addEventListener('input', debounce(() => { STATE.filters.q = el.txtSearch.value.trim(); reload(); }, 250));
+    el.btnMore   .addEventListener('click', () => { STATE.page += 1; loadPosts(false); });
+  }
 
-if (els.search) {
-  let t;
-  els.search.addEventListener('input', () => {
-    clearTimeout(t);
-    t = setTimeout(() => {
-      WIDGET_STATE.q = els.search.value.trim();
-      renderChips();
-      fetchPosts(true);
-    }, 250);
+  async function reload() {
+    paintChips();
+    await loadPosts(true);
+  }
+
+  // ==================== Init ====================
+  (async function init() {
+    bindUI();
+    await loadMeta();
+    await loadPosts(true);
+  })().catch(err => {
+    el.grid.innerHTML = `<div class="error">Error: ${esc(err.message)}</div>`;
   });
-}
-
-if (els.draft) els.draft.addEventListener('change', () => {
-  WIDGET_STATE.draft = els.draft.checked ? 1 : 0;
-  fetchPosts(true);
-});
-
-if (els.loadMore) els.loadMore.addEventListener('click', () => {
-  WIDGET_STATE.page += 1;
-  fetchPosts(false);
-});
-
-if (els.refresh) els.refresh.addEventListener('click', () => {
-  fetchMeta();
-  fetchPosts(true);
-});
-
-// ============ INIT ============
-(async function init() {
-  await fetchMeta();
-  await fetchPosts(true);
-})();
-</script>
-
+  </script>
+</body>
 </html>
