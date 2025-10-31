@@ -41,7 +41,10 @@ function extractNames(arr) {
 export default async function handler(req, res) {
   try {
     const dbId = process.env.NOTION_DATABASE_ID;
-    const query = await notionFetch(`/databases/${dbId}/query`, { page_size: 100 });
+    const query = await notionFetch(`/databases/${dbId}/query`, { 
+      page_size: 100,
+      filter_properties: ["", "Name", "Status", "Hide", "Draft", "Pinned", "Attachment", "Link", "PostClient", "PostBrands", "PostProject"]
+    });
 
     const items = [];
     const statuses = new Map();
@@ -69,24 +72,23 @@ export default async function handler(req, res) {
       const status = p.Status?.status?.name || "Sin estado";
       const isDraft = checkbox(p.Draft?.formula);
 
-      // LEER CON FALLBACK - intenta todas las estructuras posibles
       let clientNames = [];
       let brandNames = [];
       let projectNames = [];
 
-      // PostClient (ROLLUP o RELATION)
-      if (p.PostClient) {
-        clientNames = extractNames(p.PostClient.rollup?.array || p.PostClient.relation || []);
+      // PostClient (ROLLUP)
+      if (p.PostClient?.rollup?.array) {
+        clientNames = extractNames(p.PostClient.rollup.array);
       }
 
-      // PostBrands (ROLLUP o RELATION)
-      if (p.PostBrands) {
-        brandNames = extractNames(p.PostBrands.rollup?.array || p.PostBrands.relation || []);
+      // PostBrands (ROLLUP)
+      if (p.PostBrands?.rollup?.array) {
+        brandNames = extractNames(p.PostBrands.rollup.array);
       }
 
       // PostProject (RELATION)
-      if (p.PostProject) {
-        projectNames = extractNames(p.PostProject.relation || []);
+      if (p.PostProject?.relation) {
+        projectNames = extractNames(p.PostProject.relation);
       }
 
       items.push({
@@ -103,7 +105,6 @@ export default async function handler(req, res) {
         projectNames,
       });
 
-      // Filtros
       const statusKey = status || "Sin estado";
       if (!statuses.has(statusKey)) {
         statuses.set(statusKey, { name: statusKey, count: 0 });
