@@ -32,8 +32,9 @@ export default async function handler(req, res) {
 
     const items = [];
     const statuses = new Map();
-    const projects = new Map();
     const clients = new Map();
+    const brands = new Map();
+    const projects = new Map();
 
     for (const r of (query.results || [])) {
       const p = r.properties || {};
@@ -55,13 +56,17 @@ export default async function handler(req, res) {
       const status = p.Status?.status?.name || "Sin estado";
       const isDraft = checkbox(p.Draft?.formula);
 
-      // LEER CLIENTS desde campo "Client" (PEOPLE field)
-      const clientArray = p.Client?.people || [];
-      const clientNames = clientArray.map(x => x.name).filter(x => x);
+      // LEER CLIENTES desde PostClient (ROLLUP)
+      const postClientArray = p.PostClient?.rollup?.array || [];
+      const clientNames = postClientArray.map(x => x.name || x).filter(x => x);
 
-      // LEER PROJECTS desde campo "ProjectName" (ROLLUP)
-      const projectNamesArray = p.ProjectName?.rollup?.array || [];
-      const projectNames = projectNamesArray.map(x => x.name || x).filter(x => x);
+      // LEER BRANDS desde PostBrands (ROLLUP)
+      const postBrandsArray = p.PostBrands?.rollup?.array || [];
+      const brandNames = postBrandsArray.map(x => x.name || x).filter(x => x);
+
+      // LEER PROJECTS desde PostProject (RELATION)
+      const projectArray = p.PostProject?.relation || [];
+      const projectNames = projectArray.map(x => x.name).filter(x => x);
 
       items.push({
         id: r.id,
@@ -73,17 +78,17 @@ export default async function handler(req, res) {
         assets,
         isVideo: false,
         clientNames,
+        brandNames,
         projectNames,
       });
 
-      // Recolectar Status
+      // Filtros
       const statusKey = status || "Sin estado";
       if (!statuses.has(statusKey)) {
         statuses.set(statusKey, { name: statusKey, count: 0 });
       }
       statuses.get(statusKey).count++;
 
-      // Recolectar Clients
       clientNames.forEach(cname => {
         if (!clients.has(cname)) {
           clients.set(cname, { name: cname, count: 0 });
@@ -91,7 +96,13 @@ export default async function handler(req, res) {
         clients.get(cname).count++;
       });
 
-      // Recolectar Projects
+      brandNames.forEach(bname => {
+        if (!brands.has(bname)) {
+          brands.set(bname, { name: bname, count: 0 });
+        }
+        brands.get(bname).count++;
+      });
+
       projectNames.forEach(pname => {
         if (!projects.has(pname)) {
           projects.set(pname, { name: pname, count: 0 });
@@ -106,6 +117,7 @@ export default async function handler(req, res) {
       filters: {
         statuses: Array.from(statuses.values()),
         clients: Array.from(clients.values()),
+        brands: Array.from(brands.values()),
         projects: Array.from(projects.values()),
       }
     });
