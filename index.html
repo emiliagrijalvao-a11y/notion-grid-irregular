@@ -3,324 +3,245 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Content Grid</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>Flujo Creativo Grid</title>
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-
-  <!-- Header / Toolbar -->
-  <header class="toolbar">
-    <div class="toolbar-left">
-      <h1 class="title">Posts <span id="count" class="count"></span></h1>
+  <header class="fc-header">
+    <div class="fc-title-wrap">
+      <h1 class="fc-title">Posts <span id="fc-count" class="fc-count"></span></h1>
     </div>
-    <div class="toolbar-right">
-      <button id="btnRefresh" class="btn" type="button">Refresh</button>
-      <input id="txtSearch" class="search" type="search" placeholder="Buscar..." aria-label="Search posts" />
+    <div class="fc-actions">
+      <button id="fc-refresh" class="fc-btn">Refresh</button>
+      <input id="fc-search" class="fc-input" type="search" placeholder="Buscar..." />
     </div>
   </header>
 
-  <!-- Filtros -->
-  <section class="filters">
-    <div class="filters-row">
-      <select id="selClient" class="filter" aria-label="Client">
-        <option value="">All Clients</option>
-      </select>
-      <select id="selProject" class="filter" aria-label="Project">
-        <option value="">All Projects</option>
-      </select>
-      <select id="selBrand" class="filter" aria-label="Brand" disabled>
-        <option value="">All Brands</option>
-      </select>
-      <select id="selPlatform" class="filter" aria-label="Platform">
-        <option value="all">All Platforms</option>
-        <option value="Instagram">Instagram</option>
-        <option value="Tiktok">Tiktok</option>
-        <option value="Youtube">Youtube</option>
-        <option value="Facebook">Facebook</option>
-        <option value="Página web">Página web</option>
-        <option value="Pantalla">Pantalla</option>
-      </select>
-      <select id="selStatus" class="filter" aria-label="Status">
-        <option value="published">Published Only</option>
-        <option value="all">All Status</option>
-      </select>
-    </div>
-
-    <div id="chips" class="chips"></div>
+  <section class="fc-filters">
+    <select id="fc-clients" class="fc-select">
+      <option value="">All Clients</option>
+    </select>
+    <select id="fc-projects" class="fc-select">
+      <option value="">All Projects</option>
+    </select>
+    <select id="fc-brands" class="fc-select" disabled>
+      <option value="">All Brands</option>
+    </select>
+    <select id="fc-platforms" class="fc-select">
+      <option value="">All Platforms</option>
+      <option value="Instagram">Instagram</option>
+      <option value="Tiktok">Tiktok</option>
+      <option value="Youtube">Youtube</option>
+      <option value="Facebook">Facebook</option>
+      <option value="Página web">Página web</option>
+      <option value="Pantalla">Pantalla</option>
+    </select>
+    <select id="fc-status" class="fc-select">
+      <option value="published">Published Only</option>
+      <option value="all">All Status</option>
+    </select>
   </section>
 
-  <!-- Grid -->
-  <main>
-    <div id="grid" class="grid"></div>
-    <div class="loadmore-wrap">
-      <button id="btnMore" class="btn" type="button" style="display:none;">Load more</button>
-    </div>
-  </main>
+  <main id="fc-grid" class="fc-grid"></main>
 
-  <!-- Modal -->
-  <div id="modal" class="modal" hidden>
-    <div class="modal-content">
-      <button id="modalClose" class="btn btn-ghost" aria-label="Close">×</button>
-      <div class="modal-header"><h2 id="modalTitle"></h2></div>
-      <div class="modal-body">
-        <img id="modalImg" class="modal-media" alt="" />
-        <video id="modalVid" class="modal-media" controls playsinline hidden></video>
-      </div>
-      <div id="modalCopy" class="modal-copy"></div>
-      <div class="modal-footer">
-        <div class="modal-indicators" id="modalDots"></div>
-      </div>
+  <div class="fc-loadmore">
+    <button id="fc-more" class="fc-btn" style="display:none;">Load more</button>
+  </div>
+
+  <!-- modal -->
+  <div id="fc-modal" class="fc-modal" hidden>
+    <div class="fc-modal-content">
+      <button id="fc-modal-close" class="fc-modal-close">×</button>
+      <div id="fc-modal-media" class="fc-modal-media"></div>
+      <p id="fc-modal-copy" class="fc-modal-copy"></p>
+      <p id="fc-modal-meta" class="fc-modal-meta"></p>
     </div>
   </div>
 
-<script>
-let STATE = {
-  q: '',
-  status: 'published',
-  client: '',
-  project: '',
-  brand: '',
-  platform: 'all',
-  limit: 12,
-  cursor: null,
-  posts: [],
-  loading: false
-};
-
-const selClient   = document.getElementById('selClient');
-const selProject  = document.getElementById('selProject');
-const selBrand    = document.getElementById('selBrand');
-const selPlatform = document.getElementById('selPlatform');
-const selStatus   = document.getElementById('selStatus');
-const txtSearch   = document.getElementById('txtSearch');
-const btnRefresh  = document.getElementById('btnRefresh');
-const btnMore     = document.getElementById('btnMore');
-const chips       = document.getElementById('chips');
-const grid        = document.getElementById('grid');
-const countEl     = document.getElementById('count');
-
-const modal       = document.getElementById('modal');
-const modalClose  = document.getElementById('modalClose');
-const modalTitle  = document.getElementById('modalTitle');
-const modalImg    = document.getElementById('modalImg');
-const modalVid    = document.getElementById('modalVid');
-const modalCopy   = document.getElementById('modalCopy');
-const modalDots   = document.getElementById('modalDots');
-
-function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-function debounce(fn,ms=250){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
-function uniq(arr){return [...new Set(arr.filter(Boolean))];}
-
-async function fetchPosts({reset=false} = {}) {
-  if (STATE.loading) return;
-  STATE.loading = true;
-
-  try {
-    const qs = new URLSearchParams();
-    qs.set('limit', STATE.limit);
-    if (STATE.cursor) qs.set('cursor', STATE.cursor);
-    if (STATE.q) qs.set('q', STATE.q);
-    if (STATE.client) qs.set('client', STATE.client);
-    if (STATE.project) qs.set('project', STATE.project);
-    if (STATE.brand) qs.set('brand', STATE.brand);
-    if (STATE.platform && STATE.platform !== 'all') qs.set('platform', STATE.platform);
-    qs.set('status', STATE.status);
-
-    const r = await fetch('/api/grid?' + qs.toString());
-    const data = await r.json();
-
-    if (!r.ok || !data.ok) {
-      throw new Error(data.error || 'API error');
+  <script>
+  const state = {
+    posts: [],
+    cursor: null,
+    filters: {
+      client: "",
+      project: "",
+      brand: "",
+      platform: "",
+      status: "published",
+      q: ""
     }
-
-    const newPosts = data.posts || [];
-    if (reset) {
-      STATE.posts = newPosts;
-    } else {
-      STATE.posts = STATE.posts.concat(newPosts);
-    }
-    STATE.cursor = data.next_cursor || null;
-
-    buildOptionsFromPosts(STATE.posts);
-    renderGrid();
-    renderChips();
-  } catch (err) {
-    grid.innerHTML = `<div class="error">Error: ${escapeHtml(err.message)}</div>`;
-  } finally {
-    STATE.loading = false;
-  }
-}
-
-function buildOptionsFromPosts(posts) {
-  const clients = uniq(posts.map(p => p.client)).sort();
-  selClient.innerHTML = '<option value="">All Clients</option>' + clients.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-  selClient.value = STATE.client;
-
-  const projects = uniq(posts.map(p => p.project)).sort();
-  selProject.innerHTML = '<option value="">All Projects</option>' + projects.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
-  selProject.value = STATE.project;
-
-  syncBrandSelect();
-}
-function syncBrandSelect() {
-  if (!STATE.client) {
-    selBrand.disabled = true;
-    selBrand.innerHTML = '<option value="">All Brands</option>';
-    selBrand.value = '';
-    return;
-  }
-  const brands = uniq(STATE.posts.filter(p => p.client === STATE.client).map(p => p.brand)).sort();
-  selBrand.disabled = false;
-  selBrand.innerHTML = '<option value="">All Brands</option>' + brands.map(b=>`<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('');
-  if (brands.length === 1) {
-    STATE.brand = brands[0];
-  }
-  selBrand.value = STATE.brand || '';
-}
-
-function renderChips() {
-  const parts = [];
-  if (STATE.client)   parts.push(chip('Client', STATE.client,  ()=>{ STATE.client=''; STATE.brand=''; selClient.value=''; syncBrandSelect(); reload(); }));
-  if (STATE.project)  parts.push(chip('Project',STATE.project, ()=>{ STATE.project=''; selProject.value=''; reload(); }));
-  if (STATE.brand)    parts.push(chip('Brand',  STATE.brand,   ()=>{ STATE.brand=''; selBrand.value=''; reload(); }));
-  if (STATE.platform && STATE.platform!=='all') parts.push(chip('Platform', STATE.platform, ()=>{ STATE.platform='all'; selPlatform.value='all'; reload(); }));
-  if (STATE.status && STATE.status!=='published') parts.push(chip('Status', 'All', ()=>{ STATE.status='published'; selStatus.value='published'; reload(); }));
-  if (STATE.q) parts.push(chip('q', STATE.q, ()=>{ STATE.q=''; txtSearch.value=''; reload(); }));
-
-  chips.innerHTML = parts.join('') + (parts.length ? `<button class="btn btn-ghost" id="clearAll" type="button">Clear all</button>` : '');
-  const clearBtn = document.getElementById('clearAll');
-  if (clearBtn) clearBtn.onclick = () => {
-    STATE = { ...STATE, q:'', status:'published', client:'', project:'', brand:'', platform:'all', cursor:null, posts:[] };
-    selClient.value = ''; selProject.value=''; selBrand.value=''; selBrand.disabled=true; selPlatform.value='all'; selStatus.value='published'; txtSearch.value='';
-    fetchPosts({reset:true});
   };
-}
-function chip(label, value, onRemove) {
-  const id = 'chip_' + Math.random().toString(36).slice(2);
-  queueMicrotask(()=>{ const el = document.getElementById(id); if (el) el.onclick = onRemove; });
-  return `<span class="chip">${escapeHtml(label)}: ${escapeHtml(value)} <button id="${id}" class="chip-x" type="button" aria-label="Remove">×</button></span>`;
-}
 
-function renderGrid() {
-  const total = STATE.posts.length;
-  countEl.textContent = total ? `(${total})` : '';
+  const grid = document.getElementById('fc-grid');
+  const count = document.getElementById('fc-count');
+  const btnMore = document.getElementById('fc-more');
 
-  grid.innerHTML = '';
-  if (!total) {
-    grid.innerHTML = `<div class="empty">No results</div>`;
-    btnMore.style.display = 'none';
-    return;
+  async function loadPosts(reset = true) {
+    const params = new URLSearchParams();
+    params.set("limit", "12");
+    if (state.filters.status) params.set("status", state.filters.status);
+    if (state.filters.client) params.set("client", state.filters.client);
+    if (state.filters.project) params.set("project", state.filters.project);
+    if (state.filters.brand) params.set("brand", state.filters.brand);
+    if (state.filters.platform) params.set("platform", state.filters.platform);
+    if (state.filters.q) params.set("q", state.filters.q);
+    if (!reset && state.cursor) params.set("cursor", state.cursor);
+
+    const res = await fetch("/api/grid?" + params.toString());
+    const json = await res.json();
+
+    if (!json.ok) {
+      grid.innerHTML = '<div class="fc-empty">Error cargando posts</div>';
+      return;
+    }
+
+    if (reset) {
+      state.posts = json.posts || [];
+    } else {
+      state.posts = state.posts.concat(json.posts || []);
+    }
+    state.cursor = json.next_cursor || null;
+
+    renderFilters(json.filters || {});
+    renderGrid();
+
+    btnMore.style.display = state.cursor ? 'inline-flex' : 'none';
   }
 
-  STATE.posts.forEach(post => grid.appendChild(card(post)));
-  btnMore.style.display = STATE.cursor ? 'inline-flex' : 'none';
-}
+  function renderFilters(f) {
+    // clients
+    const selC = document.getElementById('fc-clients');
+    selC.innerHTML = '<option value="">All Clients</option>';
+    (f.clients || []).forEach(c => {
+      const o = document.createElement('option');
+      o.value = c;
+      o.textContent = c;
+      selC.appendChild(o);
+    });
+    selC.disabled = !(f.clients || []).length;
 
-function card(post) {
-  const el = document.createElement('button');
-  el.className = 'card';
-  el.type = 'button';
-  el.setAttribute('aria-label', post.title || 'post');
+    // projects
+    const selP = document.getElementById('fc-projects');
+    selP.innerHTML = '<option value="">All Projects</option>';
+    (f.projects || []).forEach(p => {
+      const o = document.createElement('option');
+      o.value = p;
+      o.textContent = p;
+      selP.appendChild(o);
+    });
 
-  const a = (post.assets && post.assets[0]) || null;
-
-  if (a && a.type === 'video') {
-    el.innerHTML = `
-      <div class="media-wrap">
-        <video class="media" src="${encodeURI(a.url)}" playsinline muted></video>
-        <span class="badge badge-video">▶</span>
-        ${post.assets && post.assets.length>1 ? '<span class="badge badge-carousel">IG</span>' : ''}
-      </div>
-      <div class="overlay">
-        <div class="ovl-title">${escapeHtml(post.title || '')}</div>
-        <div class="ovl-meta">${escapeHtml(post.client || '')}${post.project ? ' · '+escapeHtml(post.project) : ''}${post.date ? ' · '+escapeHtml(post.date) : ''}</div>
-      </div>
-    `;
-    el.addEventListener('mouseenter', ()=>{ const v = el.querySelector('video'); v && v.play(); });
-    el.addEventListener('mouseleave', ()=>{ const v = el.querySelector('video'); v && v.pause(); });
-  } else if (a && a.type === 'image') {
-    el.innerHTML = `
-      <div class="media-wrap">
-        <img class="media" src="${encodeURI(a.url)}" alt="${escapeHtml(post.title || '')}" />
-        ${post.assets && post.assets.length>1 ? '<span class="badge badge-carousel">IG</span>' : ''}
-      </div>
-      <div class="overlay">
-        <div class="ovl-title">${escapeHtml(post.title || '')}</div>
-        <div class="ovl-meta">${escapeHtml(post.client || '')}${post.project ? ' · '+escapeHtml(post.project) : ''}${post.date ? ' · '+escapeHtml(post.date) : ''}</div>
-      </div>
-    `;
-  } else {
-    el.innerHTML = `<div class="media-wrap placeholder">No image</div>`;
+    // brands
+    const selB = document.getElementById('fc-brands');
+    selB.innerHTML = '<option value="">All Brands</option>';
+    (f.brands || []).forEach(b => {
+      const o = document.createElement('option');
+      o.value = b;
+      o.textContent = b;
+      selB.appendChild(o);
+    });
+    selB.disabled = !(f.brands || []).length;
   }
 
-  el.onclick = () => openModal(post);
-  return el;
-}
+  function renderGrid() {
+    grid.innerHTML = '';
+    if (!state.posts.length) {
+      grid.innerHTML = '<div class="fc-empty">No posts</div>';
+      count.textContent = '';
+      return;
+    }
+    count.textContent = '(' + state.posts.length + ')';
 
-function openModal(post) {
-  const a = (post.assets && post.assets[0]) || null;
-  modalTitle.textContent = post.title || '';
+    state.posts.forEach(p => {
+      const card = document.createElement('button');
+      card.className = 'fc-card';
+      card.type = 'button';
 
-  if (a && a.type === 'video') {
-    modalVid.src = a.url;
-    modalVid.hidden = false;
-    modalImg.hidden = true;
-    modalVid.play().catch(()=>{});
-  } else {
-    modalImg.src = a ? a.url : '';
-    modalImg.hidden = false;
-    modalVid.hidden = true;
-    modalVid.pause();
+      const main = (p.assets && p.assets[0]) || null;
+      const media = main && main.url && !main.url.includes('drive.google.com')
+        ? `<img src="${main.url}" alt="${escapeHtml(p.title || '')}" class="fc-media" />`
+        : `<div class="fc-media fc-media--empty">No image</div>`;
+
+      card.innerHTML = `
+        <div class="fc-media-wrap">
+          ${media}
+          ${p.owner ? `<span class="fc-badge-owner">${escapeHtml(p.owner.slice(0,2).toUpperCase())}</span>` : ''}
+          ${main && main.type === 'video' ? `<span class="fc-badge fc-badge-video">▶</span>` : ''}
+          ${p.assets && p.assets.length > 1 ? `<span class="fc-badge fc-badge-multi">IG</span>` : ''}
+        </div>
+        <div class="fc-card-overlay">
+          <div class="fc-card-title">${escapeHtml(p.title || '')}</div>
+          <div class="fc-card-meta">${escapeHtml(p.client || '')}${p.project ? ' · ' + escapeHtml(p.project) : ''}${p.date ? ' · ' + p.date : ''}</div>
+        </div>
+      `;
+
+      // hover video
+      if (main && main.type === 'video') {
+        const v = card.querySelector('video');
+        if (v) {
+          card.addEventListener('mouseenter', () => v.play().catch(() => {}));
+          card.addEventListener('mouseleave', () => { v.pause(); v.currentTime = 0; });
+        }
+      }
+
+      card.addEventListener('click', () => openModal(p));
+      grid.appendChild(card);
+    });
   }
 
-  if (post.copy) {
-    modalCopy.textContent = post.copy;
-    modalCopy.style.display = 'block';
-  } else {
-    modalCopy.style.display = 'none';
+  function openModal(post) {
+    const modal = document.getElementById('fc-modal');
+    const mediaWrap = document.getElementById('fc-modal-media');
+    const copyEl = document.getElementById('fc-modal-copy');
+    const metaEl = document.getElementById('fc-modal-meta');
+
+    const main = (post.assets && post.assets[0]) || null;
+    if (main && main.type === 'video') {
+      mediaWrap.innerHTML = `<video src="${main.url}" controls playsinline style="width:100%;border-radius:16px;"></video>`;
+    } else if (main && main.url) {
+      mediaWrap.innerHTML = `<img src="${main.url}" style="width:100%;border-radius:16px;" />`;
+    } else {
+      mediaWrap.innerHTML = `<div style="padding:40px 0;text-align:center;color:#999;">No media</div>`;
+    }
+
+    copyEl.textContent = post.copy || '';
+    copyEl.style.display = post.copy ? 'block' : 'none';
+
+    metaEl.textContent = [post.client, post.project, post.date].filter(Boolean).join(' · ');
+
+    modal.hidden = false;
   }
 
-  modalDots.innerHTML = (post.assets && post.assets.length>1)
-    ? Array.from({length: post.assets.length}, (_,i)=>`<span class="dot ${i===0?'active':''}"></span>`).join('')
-    : '';
+  function closeModal() {
+    const modal = document.getElementById('fc-modal');
+    modal.hidden = true;
+    const mediaWrap = document.getElementById('fc-modal-media');
+    mediaWrap.innerHTML = '';
+  }
 
-  modal.hidden = false;
-}
-function closeModal() {
-  modal.hidden = true;
-  modalVid.pause(); modalVid.currentTime = 0;
-}
-modalClose.onclick = closeModal;
-modal.addEventListener('click', (e)=>{ if (e.target === modal) closeModal(); });
-document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+  document.getElementById('fc-modal-close').onclick = closeModal;
+  document.getElementById('fc-modal').addEventListener('click', e => {
+    if (e.target.id === 'fc-modal') closeModal();
+  });
 
-btnRefresh.onclick = ()=> reload(true);
-btnMore.onclick    = ()=> loadMore();
+  function escapeHtml(s) {
+    return String(s || "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
 
-selClient.onchange   = ()=>{ STATE.client = selClient.value; STATE.brand=''; syncBrandSelect(); reload(); };
-selProject.onchange  = ()=>{ STATE.project = selProject.value; reload(); };
-selBrand.onchange    = ()=>{ STATE.brand = selBrand.value; reload(); };
-selPlatform.onchange = ()=>{ STATE.platform = selPlatform.value; reload(); };
-selStatus.onchange   = ()=>{ STATE.status = selStatus.value; reload(true); };
+  // events filters
+  document.getElementById('fc-refresh').onclick = () => loadPosts(true);
+  document.getElementById('fc-more').onclick = () => loadPosts(false);
+  document.getElementById('fc-clients').onchange = e => { state.filters.client = e.target.value; loadPosts(true); };
+  document.getElementById('fc-projects').onchange = e => { state.filters.project = e.target.value; loadPosts(true); };
+  document.getElementById('fc-brands').onchange = e => { state.filters.brand = e.target.value; loadPosts(true); };
+  document.getElementById('fc-platforms').onchange = e => { state.filters.platform = e.target.value; loadPosts(true); };
+  document.getElementById('fc-status').onchange = e => { state.filters.status = e.target.value; loadPosts(true); };
+  document.getElementById('fc-search').oninput = e => {
+    state.filters.q = e.target.value.trim();
+    clearTimeout(window.__fcT);
+    window.__fcT = setTimeout(() => loadPosts(true), 250);
+  };
 
-txtSearch.addEventListener('input', debounce(()=>{
-  STATE.q = (txtSearch.value || '').trim();
-  reload(true);
-}, 250));
-
-function reload(hard=false) {
-  STATE.cursor = null;
-  if (hard) STATE.posts = [];
-  fetchPosts({reset:true});
-}
-function loadMore() {
-  if (!STATE.cursor) return;
-  fetchPosts({reset:false});
-}
-
-(async function init(){
-  await fetchPosts({reset:true});
-})();
-</script>
+  loadPosts(true);
+  </script>
 </body>
 </html>
