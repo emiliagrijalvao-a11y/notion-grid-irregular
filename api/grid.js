@@ -36,6 +36,12 @@ export default async function handler(req, res) {
     const brands = new Map();
     const projects = new Map();
 
+    // DEBUG: Log propiedades del primer post
+    if (query.results && query.results.length > 0) {
+      console.log("=== FIRST POST PROPERTIES ===");
+      console.log(JSON.stringify(query.results[0].properties, null, 2));
+    }
+
     for (const r of (query.results || [])) {
       const p = r.properties || {};
       
@@ -56,26 +62,36 @@ export default async function handler(req, res) {
       const status = p.Status?.status?.name || "Sin estado";
       const isDraft = checkbox(p.Draft?.formula);
 
+      // DEBUG: Log cada campo
+      console.log(`Post: ${title}`);
+      console.log(`  PostClient:`, p.PostClient);
+      console.log(`  PostBrands:`, p.PostBrands);
+      console.log(`  PostProject:`, p.PostProject);
+
       // LEER CLIENTES desde PostClient (ROLLUP)
       const postClientArray = p.PostClient?.rollup?.array || [];
       const clientNames = postClientArray.map(x => {
         if (typeof x === 'string') return x;
-        return (x?.name || '').trim();
+        return (x?.name || x?.title || '').trim();
       }).filter(x => x);
 
       // LEER BRANDS desde PostBrands (ROLLUP)
       const postBrandsArray = p.PostBrands?.rollup?.array || [];
       const brandNames = postBrandsArray.map(x => {
         if (typeof x === 'string') return x;
-        return (x?.name || '').trim();
+        return (x?.name || x?.title || '').trim();
       }).filter(x => x);
 
-      // LEER PROJECTS desde PostProject (RELATION) - FIX: usa title, no name
+      // LEER PROJECTS desde PostProject (RELATION)
       const projectArray = p.PostProject?.relation || [];
       const projectNames = projectArray.map(x => {
         if (typeof x === 'string') return x;
         return (x?.title || x?.name || '').trim();
       }).filter(x => x);
+
+      console.log(`  Clients procesados:`, clientNames);
+      console.log(`  Brands procesados:`, brandNames);
+      console.log(`  Projects procesados:`, projectNames);
 
       items.push({
         id: r.id,
@@ -119,6 +135,12 @@ export default async function handler(req, res) {
         projects.get(pname).count++;
       });
     }
+
+    console.log("=== FINAL FILTERS ===");
+    console.log("Statuses:", Array.from(statuses.values()));
+    console.log("Clients:", Array.from(clients.values()));
+    console.log("Brands:", Array.from(brands.values()));
+    console.log("Projects:", Array.from(projects.values()));
 
     res.status(200).json({
       ok: true,
