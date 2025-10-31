@@ -1,4 +1,3 @@
-// /api/grid.js - SIN ClientName, USA PostClient ROLLUP
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
 
@@ -56,11 +55,11 @@ export default async function handler(req, res) {
       const status = p.Status?.status?.name || "Sin estado";
       const isDraft = checkbox(p.Draft?.formula);
 
-      // LEER PostClient (ROLLUP - array de nombres)
-      const clientNamesArray = p.PostClient?.rollup?.array || [];
-      const clientNames = clientNamesArray.map(x => x.name || x).filter(x => x);
+      // LEER CLIENTS desde campo "Client" (PEOPLE field)
+      const clientArray = p.Client?.people || [];
+      const clientNames = clientArray.map(x => x.name).filter(x => x);
 
-      // LEER ProjectName (ROLLUP - array de nombres)
+      // LEER PROJECTS desde campo "ProjectName" (ROLLUP)
       const projectNamesArray = p.ProjectName?.rollup?.array || [];
       const projectNames = projectNamesArray.map(x => x.name || x).filter(x => x);
 
@@ -77,7 +76,7 @@ export default async function handler(req, res) {
         projectNames,
       });
 
-      // Recolectar filtros Status
+      // Recolectar Status
       const statusKey = status || "Sin estado";
       if (!statuses.has(statusKey)) {
         statuses.set(statusKey, { name: statusKey, count: 0 });
