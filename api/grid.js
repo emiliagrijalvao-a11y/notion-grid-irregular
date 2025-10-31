@@ -1,4 +1,4 @@
-// api/grid.js (corregido)
+// api/grid.js
 
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
@@ -34,8 +34,9 @@ async function getPosts() {
       title: post.properties.Name.title.map(t => t.plain_text).join(" "),
       archived: post.properties.Archivado.checkbox,
       hidden: post.properties.Hidden.checkbox,
+      date: post.properties.Fecha?.date?.start || "",
       assets: extractAssets(post.properties),
-      // agrega propiedades adicionales según sea necesario
+      // Añade más campos si necesario
     };
   }).filter(post => !post.hidden && !post.archived);
 }
