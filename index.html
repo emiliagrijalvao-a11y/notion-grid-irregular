@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Notion Grid Widget</title>
 
-  <!-- Load styles and icons -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
   <style>
     body {
@@ -13,13 +12,11 @@
       --bg-color: #fff; --text-color: #111;
       margin: 0; padding: 15px; background: var(--bg-color); color: var(--text-color);
     }
-
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
       gap: 8px;
     }
-
     .card {
       position: relative;
       background: #f7f7f7;
@@ -28,150 +25,72 @@
       cursor: pointer;
       min-height: 180px;
       display: flex; align-items: center; justify-content: center;
-      color: #999;
-      font-size: 14px;
+      color: #999; font-size: 14px;
       user-select: none;
     }
-
-    /* Placeholder for empty cards */
     .card.empty {
-      background: #cce5cc; /* light green */
+      background: #cce5cc;
       font-style: italic;
       font-weight: 500;
     }
-
     .card.empty .label-irregular {
-      position: absolute;
-      top: 5px;
-      left: 5px;
-      color: #2d7a2d; /* dark green */
-      font-size: 12px;
-      font-weight: 600;
+      position: absolute; top: 5px; left: 5px;
+      color: #2d7a2d;
+      font-size: 12px; font-weight: 600;
     }
-
     .card img, .card video {
-      width: 100%;
-      height: auto;
-      display: block;
-      border-radius: 10px;
+      width: 100%; height: auto; display: block; border-radius: 10px;
     }
-
-    /* Overlay text on hover/tap */
     .overlay {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(0,0,0,0.6);
-      color: white;
-      padding: 6px 8px;
-      font-size: 13px;
-      display: none;
-      justify-content: space-between;
-      border-bottom-left-radius: 10px;
-      border-bottom-right-radius: 10px;
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,0.6); color: white;
+      padding: 6px 8px; font-size: 13px;
+      display: none; justify-content: space-between;
+      border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;
     }
-
     .card:hover .overlay,
     .card:focus-within .overlay {
       display: flex;
     }
-
-    /* Video icon badge */
     .badge-video {
-      position: absolute;
-      top: 6px;
-      right: 6px;
-      background: #fff;
-      color: #333;
-      border-radius: 50%;
-      font-size: 12px;
-      padding: 3px 6px;
-      font-weight: bold;
-      opacity: 0.8;
+      position: absolute; top: 6px; right: 6px;
+      background: #fff; color: #333; border-radius: 50%;
+      font-size: 12px; padding: 3px 6px; font-weight: bold; opacity: 0.8;
     }
-
-    /* Carousel icon badge */
     .badge-carousel {
-      position: absolute;
-      top: 6px;
-      right: 30px;
-      background: white;
-      color: #000;
-      border-radius: 4px;
-      font-size: 14px;
-      font-weight: bold;
-      padding: 2px 6px;
-      opacity: 0.7;
+      position: absolute; top: 6px; right: 30px;
+      background: white; color: #000; border-radius: 4px;
+      font-size: 14px; font-weight: bold; padding: 2px 6px; opacity: 0.7;
     }
-
-    /* Modal styles */
     .modal {
-      display: none;
-      position: fixed;
-      z-index: 1000;
+      display: none; position: fixed; z-index: 1000;
       top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.85);
-      align-items: center;
-      justify-content: center;
+      align-items: center; justify-content: center;
     }
-
     .modal-content {
-      position: relative;
-      max-width: 90vw;
-      max-height: 90vh;
-      background: #111;
-      border-radius: 10px;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      user-select: none;
+      position: relative; max-width: 90vw; max-height: 90vh;
+      background: #111; border-radius: 10px; overflow: hidden;
+      display: flex; flex-direction: column; user-select: none;
     }
-
     .modal-header {
-      color: white;
-      padding: 10px;
-      text-align: center;
-      font-size: 18px;
+      color: white; padding: 10px; text-align: center; font-size: 18px;
     }
-
     .modal-body {
-      flex-grow: 1;
-      overflow: hidden;
-      position: relative;
+      flex-grow: 1; overflow: hidden; position: relative;
     }
-
     .modal-media {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      background: black;
+      width: 100%; height: 100%; object-fit: contain; background: black;
     }
-
-    /* Navigation buttons */
     .modal-nav {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      color: white;
-      font-size: 30px;
-      background: rgba(0,0,0,0.4);
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      line-height: 40px;
-      text-align: center;
-      cursor: pointer;
-      user-select: none;
+      position: absolute; top: 50%; transform: translateY(-50%);
+      color: white; font-size: 30px;
+      background: rgba(0,0,0,0.4); border-radius: 50%; width: 40px;
+      height: 40px; line-height: 40px; text-align: center;
+      cursor: pointer; user-select: none;
     }
-    .modal-prev {
-      left: 10px;
-    }
-    .modal-next {
-      right: 10px;
-    }
-
-    /* Responsive */
+    .modal-prev { left: 10px; }
+    .modal-next { right: 10px; }
     @media (max-width: 600px) {
       .grid {
         grid-template-columns: 1fr;
@@ -183,10 +102,7 @@
   </style>
 </head>
 <body>
-
-  <div class="grid" id="gridContainer">
-    <!-- Cards dynamically inserted here -->
-  </div>
+  <div class="grid" id="gridContainer"></div>
 
   <div id="modal" class="modal" tabindex="-1" aria-hidden="true">
     <div class="modal-content">
@@ -201,9 +117,8 @@
   </div>
 
   <script>
-    // Simula fetch posts (remplazar con llamada a /api/grid)
     const posts = [
-      // Ejemplo de posts con propiedades simuladas...
+      // Posts cargados desde API en despliegue
     ];
 
     const gridContainer = document.getElementById('gridContainer');
@@ -211,7 +126,7 @@
     const modalTitle = document.getElementById('modalTitle');
     const modalImage = document.getElementById('modalImage');
     const modalVideo = document.getElementById('modalVideo');
-
+    
     function createCard(post) {
       const card = document.createElement('div');
       card.className = 'card';
@@ -220,7 +135,6 @@
         card.innerHTML = '<div class="label-irregular">Irregular</div>No hay contenido aún';
         return card;
       }
-
       const mainAsset = post.assets[0];
       if(mainAsset.type === 'video') {
         const video = document.createElement('video');
@@ -235,39 +149,28 @@
         img.alt = post.title || '';
         card.appendChild(img);
       }
-
-      // Overlay
       const overlay = document.createElement('div');
       overlay.className = 'overlay';
       overlay.textContent = `${post.title} - ${post.date || ''}`;
       card.appendChild(overlay);
-
-      // Video badge if needed
       if(post.assets.length > 0 && post.assets[0].type === 'video') {
         const badge = document.createElement('div');
         badge.className = 'badge-video';
         badge.textContent = '▶';
         card.appendChild(badge);
       }
-
-      // Carousel badge if multiple assets
       if(post.assets.length > 1) {
         const carouselBadge = document.createElement('div');
         carouselBadge.className = 'badge-carousel';
         carouselBadge.textContent = 'IG';
         card.appendChild(carouselBadge);
       }
-
-      // Hover play video
       if(post.assets.length > 0 && post.assets[0].type === 'video') {
         const video = card.querySelector('video');
         card.addEventListener('mouseenter', () => video.play());
         card.addEventListener('mouseleave', () => video.pause());
       }
-
-      // Click to open modal
       card.addEventListener('click', () => {
-        // Mostrar modal con contenido del post (simplificado)
         if (post.assets[0].type === 'video') {
           modalVideo.src = post.assets[0].url;
           modalVideo.style.display = 'block';
@@ -283,14 +186,12 @@
         modal.style.display = 'flex';
         modal.focus();
       });
-
       return card;
     }
 
     function renderGrid(posts) {
       gridContainer.innerHTML = '';
       if(!posts || posts.length === 0) {
-        // Render algunos cards vacíos para efecto diferencial
         for(let i = 0; i < 6; i++) {
           gridContainer.appendChild(createCard(null));
         }
@@ -303,22 +204,21 @@
 
     renderGrid(posts);
 
-    // Modal close on background or escape
     modal.addEventListener('click', e => {
-      if(e.target === modal || e.key === 'Escape') {
+      if (e.target === modal) {
         modal.style.display = 'none';
         modalVideo.pause();
+        modalVideo.currentTime = 0;
       }
     });
 
-    // Modal navigation simplified: solo cerrar
     document.addEventListener('keydown', e => {
-      if(e.key === 'Escape') {
+      if (e.key === 'Escape' && modal.style.display === 'flex') {
         modal.style.display = 'none';
         modalVideo.pause();
+        modalVideo.currentTime = 0;
       }
     });
-
   </script>
 </body>
 </html>
