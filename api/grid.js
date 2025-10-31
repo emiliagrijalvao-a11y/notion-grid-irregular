@@ -1,6 +1,16 @@
-// /api/grid.js - VERSION DEBUG
+// /api/grid.js - DEBUG V2
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
+
+function rtText(p) {
+  if (!p) return "";
+  const arr = p.rich_text || p.title || [];
+  return arr.map(x => x.plain_text || "").join("").trim();
+}
+
+function checkbox(p) {
+  return !!(p && p.checkbox);
+}
 
 async function notionFetch(path, body) {
   const r = await fetch(`${NOTION_API}${path}`, {
@@ -12,37 +22,42 @@ async function notionFetch(path, body) {
     },
     body: JSON.stringify(body),
   });
-  if (!r.ok) {
-    const text = await r.text().catch(() => "");
-    throw new Error(`Notion ${r.status}: ${text}`);
-  }
+  if (!r.ok) throw new Error(`Notion ${r.status}`);
   return r.json();
 }
 
 export default async function handler(req, res) {
   try {
     const dbId = process.env.NOTION_DATABASE_ID;
-    if (!process.env.NOTION_TOKEN || !dbId) {
-      return res.status(500).json({ error: "Missing credentials" });
-    }
+    const query = await notionFetch(`/databases/${dbId}/query`, { page_size: 100 });
 
-    const query = await notionFetch(`/databases/${dbId}/query`, {
-      page_size: 10,
+    const debug = query.results.map(r => {
+      const p = r.properties || {};
+      const titleProp = p[""] || p["Name"];
+      const title = rtText(titleProp);
+      const hideVal = checkbox(p["Hide"]);
+      const attachmentCount = p.Attachment?.files?.length || 0;
+      const hasLink = !!p.Link?.url;
+      
+      return {
+        id: r.id,
+        title,
+        hideVal,
+        attachmentCount,
+        hasLink,
+        linkUrl: p.Link?.url || null,
+        willShow: !hideVal && (attachmentCount > 0 || hasLink)
+      };
     });
 
-    // DEBUG: Mostrar TODO sin procesar
-    const debug = {
-      totalResults: query.results.length,
-      results: query.results.map(r => ({
-        id: r.id,
-        properties: Object.keys(r.properties || {}),
-        rawProperties: r.properties
-      }))
-    };
+    const willShow = debug.filter(d => d.willShow);
 
-    res.status(200).json(debug);
-
+    res.status(200).json({
+      total: debug.length,
+      willShow: willShow.length,
+      items: debug
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message, stack: err.stack });
+    res.status(500).json({ error: err.message });
   }
 }
