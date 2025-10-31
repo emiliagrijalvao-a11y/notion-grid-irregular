@@ -103,9 +103,8 @@ export default async function handler(req, res) {
     const brandFilter = url.searchParams.get("brand") || "";
     const draftOnly = url.searchParams.get("draft") === "1";
 
-    // Consultar base Content/Posts
+    // Consultar base Content/Posts (SIN SORTING)
     const query = await notionFetch(`/databases/${dbId}/query`, {
-      sorts: [{ property: "Created time", direction: "descending" }],
       page_size: 100,
     });
 
@@ -120,23 +119,24 @@ export default async function handler(req, res) {
       // Ocultar Hidden
       if (isHidden(p)) continue;
 
-      // Cover/Media
+      // Cover/Media/Attachment
       const coverFiles = p.Cover?.files || [];
       const mediaFiles = p.Media?.files || [];
-      const assets = filesToAssets({ files: coverFiles.length ? coverFiles : mediaFiles });
+      const attachmentFiles = p.Attachment?.files || [];
+      const assets = filesToAssets({ files: coverFiles.length ? coverFiles : (mediaFiles.length ? mediaFiles : attachmentFiles) });
       const thumb = assets[0]?.url || null;
 
       // Title
-      const title = rtText(p.Name) || "Untitled";
+      const title = rtText(p.Name) || rtText(p.Title) || "Untitled";
 
       // Status y Draft
       const status = sel(p.Status) || "";
       const draftCheckbox = checkbox(p.Draft);
       const isDraft = draftCheckbox || status.toLowerCase() === "draft";
 
-      // Relaciones: PostProject (relation directa), PostMain y PostBrands (rollups)
+      // Relaciones: PostProject (relation directa), PostClient y PostBrands (rollups)
       const projectIds = getRelationIds(p.PostProject);
-      const clientIds = getRollupRelations(p.PostMain);
+      const clientIds = getRollupRelations(p.PostClient) || getRollupRelations(p.PostMain);
       const brandIds = getRollupRelations(p.PostBrands);
 
       // Aplicar filtros
@@ -190,3 +190,4 @@ export default async function handler(req, res) {
     res.status(500).json({ error: err.message });
   }
 }
+v
