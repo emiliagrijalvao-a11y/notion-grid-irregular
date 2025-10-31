@@ -1,4 +1,4 @@
-// /api/grid.js
+// /api/grid.js - VERSIÓN FINAL ARREGLADA
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
 
@@ -42,11 +42,9 @@ export default async function handler(req, res) {
       const hideVal = checkbox(p["Hide"]);
       if (hideVal) continue;
 
-      // Título
       const titleProp = p[""] || p["Name"];
       const title = rtText(titleProp) || "Untitled";
 
-      // Imágenes
       const attachmentFiles = p.Attachment?.files || [];
       let assets = attachmentFiles.map(f => ({
         type: "image",
@@ -55,22 +53,25 @@ export default async function handler(req, res) {
 
       let thumb = assets[0]?.url || (p.Link?.url ? p.Link.url : null);
 
-      // Status y Draft
       const draftFormula = p.Draft?.formula?.boolean || false;
       const status = p.Status?.status?.name || "";
       const isDraft = draftFormula;
 
-      // Relaciones - IMPORTANTES
-      // PostProject es una RELATION directa
+      // RELACIONES - CORREGIDO
+      // PostProject es una RELATION
       const projectIds = (p.PostProject?.relation || []).map(x => x.id);
       
-      // PostClient es una ROLLUP (array de people)
+      // PostClient es una ROLLUP de relations (array de objects con id)
       const clientRollup = p.PostClient?.rollup?.array || [];
-      const clientIds = clientRollup.map(item => item.id); // IDs de los clientes
+      const clientIds = clientRollup
+        .filter(item => item && item.id)
+        .map(item => item.id);
       
-      // PostBrands es una ROLLUP (array de relations)
+      // PostBrands es una ROLLUP de relations (array de objects con id)
       const brandRollup = p.PostBrands?.rollup?.array || [];
-      const brandIds = brandRollup.map(item => item.id); // IDs de los brands
+      const brandIds = brandRollup
+        .filter(item => item && item.id)
+        .map(item => item.id);
 
       items.push({
         id: r.id,
@@ -86,7 +87,6 @@ export default async function handler(req, res) {
         brandIds,
       });
 
-      // Construir filtros
       projectIds.forEach(id => {
         if (!projects.has(id)) projects.set(id, { id, name: id });
       });
