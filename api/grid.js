@@ -58,15 +58,28 @@ export default async function handler(req, res) {
 
       // LEER CLIENTES desde PostClient (ROLLUP)
       const postClientArray = p.PostClient?.rollup?.array || [];
-      const clientNames = postClientArray.map(x => x.name || x).filter(x => x);
+      const clientNames = postClientArray.map(x => {
+        if (typeof x === 'string') return x;
+        if (x && x.name) return x.name;
+        return null;
+      }).filter(x => x);
 
       // LEER BRANDS desde PostBrands (ROLLUP)
       const postBrandsArray = p.PostBrands?.rollup?.array || [];
-      const brandNames = postBrandsArray.map(x => x.name || x).filter(x => x);
+      const brandNames = postBrandsArray.map(x => {
+        if (typeof x === 'string') return x;
+        if (x && x.name) return x.name;
+        return null;
+      }).filter(x => x);
 
       // LEER PROJECTS desde PostProject (RELATION)
       const projectArray = p.PostProject?.relation || [];
-      const projectNames = projectArray.map(x => x.name).filter(x => x);
+      const projectNames = projectArray.map(x => {
+        if (typeof x === 'string') return x;
+        if (x && x.title) return x.title;
+        if (x && x.name) return x.name;
+        return null;
+      }).filter(x => x);
 
       items.push({
         id: r.id,
