@@ -1,10 +1,9 @@
 // api/health.js
-
-export default function handler(req, res) {
+module.exports = (req, res) => {
   res.status(200).json({
-    ok: true,
+    ok: !!(process.env.NOTION_TOKEN && process.env.NOTION_POSTS_DB_ID),
     hasToken: !!process.env.NOTION_TOKEN,
-    hasDb: !!process.env.NOTION_DATABASE_ID,
-    now: new Date().toISOString(),
+    hasDb: !!process.env.NOTION_POSTS_DB_ID,
+    now: new Date().toISOString()
   });
-}
+};
