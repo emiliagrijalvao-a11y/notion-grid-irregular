@@ -1,4 +1,4 @@
-// /api/grid.js - VERSIÓN FINAL CORRECTA
+// /api/grid.js - SIN ClientName, USA PostClient ROLLUP
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
 
@@ -33,8 +33,8 @@ export default async function handler(req, res) {
 
     const items = [];
     const statuses = new Map();
-    const clients = new Map();
     const projects = new Map();
+    const clients = new Map();
 
     for (const r of (query.results || [])) {
       const p = r.properties || {};
@@ -56,21 +56,13 @@ export default async function handler(req, res) {
       const status = p.Status?.status?.name || "Sin estado";
       const isDraft = checkbox(p.Draft?.formula);
 
-      // LEER CLIENTES (desde campo "Client")
-      const clientIds = [];
-      if (p.Client?.people) {
-        p.Client.people.forEach(person => {
-          if (person.id) clientIds.push(person.id);
-        });
-      }
+      // LEER PostClient (ROLLUP - array de nombres)
+      const clientNamesArray = p.PostClient?.rollup?.array || [];
+      const clientNames = clientNamesArray.map(x => x.name || x).filter(x => x);
 
-      // LEER PROYECTOS (desde campo "Project")
-      const projectIds = [];
-      if (p.Project?.relation) {
-        p.Project.relation.forEach(proj => {
-          if (proj.id) projectIds.push(proj.id);
-        });
-      }
+      // LEER ProjectName (ROLLUP - array de nombres)
+      const projectNamesArray = p.ProjectName?.rollup?.array || [];
+      const projectNames = projectNamesArray.map(x => x.name || x).filter(x => x);
 
       items.push({
         id: r.id,
@@ -81,8 +73,8 @@ export default async function handler(req, res) {
         thumb,
         assets,
         isVideo: false,
-        clientIds,
-        projectIds,
+        clientNames,
+        projectNames,
       });
 
       // Recolectar filtros Status
@@ -93,19 +85,19 @@ export default async function handler(req, res) {
       statuses.get(statusKey).count++;
 
       // Recolectar Clients
-      clientIds.forEach(cid => {
-        if (!clients.has(cid)) {
-          clients.set(cid, { id: cid, name: cid, count: 0 });
+      clientNames.forEach(cname => {
+        if (!clients.has(cname)) {
+          clients.set(cname, { name: cname, count: 0 });
         }
-        clients.get(cid).count++;
+        clients.get(cname).count++;
       });
 
       // Recolectar Projects
-      projectIds.forEach(pid => {
-        if (!projects.has(pid)) {
-          projects.set(pid, { id: pid, name: pid, count: 0 });
+      projectNames.forEach(pname => {
+        if (!projects.has(pname)) {
+          projects.set(pname, { name: pname, count: 0 });
         }
-        projects.get(pid).count++;
+        projects.get(pname).count++;
       });
     }
 
