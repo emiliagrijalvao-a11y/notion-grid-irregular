@@ -1,4 +1,4 @@
-// /api/grid.js - VERSIÓN FINAL ARREGLADA
+// /api/grid.js - CON FILTROS DE STATUS Y DRAFT
 const NOTION_API = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
 
@@ -32,9 +32,8 @@ export default async function handler(req, res) {
     const query = await notionFetch(`/databases/${dbId}/query`, { page_size: 100 });
 
     const items = [];
-    const projects = new Map();
-    const clients = new Map();
-    const brands = new Map();
+    const statuses = new Map();
+    const drafts = new Map();
 
     for (const r of (query.results || [])) {
       const p = r.properties || {};
@@ -54,24 +53,8 @@ export default async function handler(req, res) {
       let thumb = assets[0]?.url || (p.Link?.url ? p.Link.url : null);
 
       const draftFormula = p.Draft?.formula?.boolean || false;
-      const status = p.Status?.status?.name || "";
+      const status = p.Status?.status?.name || "Sin estado";
       const isDraft = draftFormula;
-
-      // RELACIONES - CORREGIDO
-      // PostProject es una RELATION
-      const projectIds = (p.PostProject?.relation || []).map(x => x.id);
-      
-      // PostClient es una ROLLUP de relations (array de objects con id)
-      const clientRollup = p.PostClient?.rollup?.array || [];
-      const clientIds = clientRollup
-        .filter(item => item && item.id)
-        .map(item => item.id);
-      
-      // PostBrands es una ROLLUP de relations (array de objects con id)
-      const brandRollup = p.PostBrands?.rollup?.array || [];
-      const brandIds = brandRollup
-        .filter(item => item && item.id)
-        .map(item => item.id);
 
       items.push({
         id: r.id,
@@ -82,29 +65,28 @@ export default async function handler(req, res) {
         thumb,
         assets,
         isVideo: false,
-        projectIds,
-        clientIds,
-        brandIds,
       });
 
-      projectIds.forEach(id => {
-        if (!projects.has(id)) projects.set(id, { id, name: id });
-      });
-      clientIds.forEach(id => {
-        if (!clients.has(id)) clients.set(id, { id, name: id });
-      });
-      brandIds.forEach(id => {
-        if (!brands.has(id)) brands.set(id, { id, name: id });
-      });
+      // Recolectar filtros
+      const statusKey = status || "Sin estado";
+      if (!statuses.has(statusKey)) {
+        statuses.set(statusKey, { name: statusKey, count: 0 });
+      }
+      statuses.get(statusKey).count++;
+
+      const draftKey = isDraft ? "Draft" : "Published";
+      if (!drafts.has(draftKey)) {
+        drafts.set(draftKey, { name: draftKey, count: 0 });
+      }
+      drafts.get(draftKey).count++;
     }
 
     res.status(200).json({
       ok: true,
       items,
       filters: {
-        projects: Array.from(projects.values()),
-        clients: Array.from(clients.values()),
-        brands: Array.from(brands.values()),
+        statuses: Array.from(statuses.values()),
+        drafts: Array.from(drafts.values()),
       }
     });
 
